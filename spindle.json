@@ -1,14 +1,16 @@
 {
   "version": "1.0.0",
-  "name": "ChromaScribe",
-  "identifier": "chromascribe",
+  "name": "LookingGlass",
+  "identifier": "looking_glass",
   "author": "Eleisea",
-  "github": "https://github.com/Eleisea/chromaScribe",
+  "github": "https://github.com/Eleisea/LookingGlass",
   "homepage": "https://github.com/Eleisea",
   "description": "Renders the Creator's Notes of a character card in a Drawer Tab and an optional Float Widget.",
   "permissions": [
     "chats",
-    "characters"
+    "characters",
+    "app_manipulation",
+    "ui_panels"
   ],
   "entry_backend": "dist/backend.js",
   "entry_frontend": "dist/frontend.js",

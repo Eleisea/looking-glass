@@ -16,7 +16,11 @@ export function setup() {
           return;
         }
 
-        spindle.sendToFrontend({ type: 'creator_notes', content: character.creator_notes || '' }, userId);
+        // Try getting from extensions.charCreatorNotes, then root charCreatorNotes, then creator_notes
+        const extData = character.extensions || {};
+        const notes = extData.charCreatorNotes || (character as any).charCreatorNotes || character.creator_notes || '';
+        
+        spindle.sendToFrontend({ type: 'creator_notes', content: notes }, userId);
       } catch (err) {
         spindle.sendToFrontend({ type: 'creator_notes', content: '', error: String(err) }, userId);
       }
@@ -29,8 +33,9 @@ export function setup() {
       if (chat) {
         const character = await spindle.characters.get(chat.character_id);
         if (character) {
-          // Broadcast to all users using this extension
-          spindle.sendToFrontend({ type: 'creator_notes', content: character.creator_notes || '' });
+          const extData = character.extensions || {};
+          const notes = extData.charCreatorNotes || (character as any).charCreatorNotes || character.creator_notes || '';
+          spindle.sendToFrontend({ type: 'creator_notes', content: notes });
         }
       }
     } catch (err) {
