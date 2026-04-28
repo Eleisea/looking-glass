@@ -1,0 +1,16 @@
+{
+  "version": "1.0.0",
+  "name": "ChromaScribe",
+  "identifier": "chromascribe",
+  "author": "Eleisea",
+  "github": "https://github.com/Eleisea/chromaScribe",
+  "homepage": "https://github.com/Eleisea",
+  "description": "Renders the Creator's Notes of a character card in a Drawer Tab and an optional Float Widget.",
+  "permissions": [
+    "chats",
+    "characters"
+  ],
+  "entry_backend": "dist/backend.js",
+  "entry_frontend": "dist/frontend.js",
+  "minimum_lumiverse_version": "0.1.0"
+}

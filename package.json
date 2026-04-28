@@ -1,0 +1,21 @@
+{
+  "name": "chromascribe",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "dependencies": {
+    "marked": "^18.0.2"
+  },
+  "devDependencies": {
+    "@types/marked": "^5.0.2",
+    "lumiverse-spindle-types": "^0.4.43",
+    "typescript": "^6.0.3"
+  }
+}
