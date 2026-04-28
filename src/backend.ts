@@ -16,9 +16,15 @@ export function setup() {
           return;
         }
 
-        // Try getting from extensions.charCreatorNotes, then root charCreatorNotes, then creator_notes
-        const extData = character.extensions || {};
-        const notes = extData.charCreatorNotes || (character as any).charCreatorNotes || character.creator_notes || '';
+        // Exhaustive search for creator notes / charCreatorNotes
+        const char = character as any;
+        const notes = 
+          char.extensions?.charCreatorNotes || 
+          char.charCreatorNotes || 
+          char.creator_notes || 
+          char.data?.extensions?.charCreatorNotes || 
+          char.data?.creator_notes || 
+          '';
         
         spindle.sendToFrontend({ type: 'creator_notes', content: notes }, userId);
       } catch (err) {
@@ -33,8 +39,14 @@ export function setup() {
       if (chat) {
         const character = await spindle.characters.get(chat.character_id);
         if (character) {
-          const extData = character.extensions || {};
-          const notes = extData.charCreatorNotes || (character as any).charCreatorNotes || character.creator_notes || '';
+          const char = character as any;
+          const notes = 
+            char.extensions?.charCreatorNotes || 
+            char.charCreatorNotes || 
+            char.creator_notes || 
+            char.data?.extensions?.charCreatorNotes || 
+            char.data?.creator_notes || 
+            '';
           spindle.sendToFrontend({ type: 'creator_notes', content: notes });
         }
       }
