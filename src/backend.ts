@@ -24,13 +24,17 @@ export function setup() {
           char.charCreatorNotes || 
           char.creatorNotes || 
           char.creator_notes || 
+          char.metadata?.creatorNotes || 
+          char.metadata?.creator_notes || 
           char.data?.extensions?.charCreatorNotes || 
           char.data?.extensions?.creatorNotes || 
           char.data?.creator_notes || 
           '';
         
+        spindle.log.info(`[LookingGlass] Found notes for ${char.name} (length: ${notes.length}). Fields present: ${Object.keys(char).join(', ')}`);
         spindle.sendToFrontend({ type: 'creator_notes', content: notes }, userId);
       } catch (err) {
+        spindle.log.error(`[LookingGlass] Error fetching notes: ${err}`);
         spindle.sendToFrontend({ type: 'creator_notes', content: '', error: String(err) }, userId);
       }
     }
@@ -49,6 +53,8 @@ export function setup() {
             char.charCreatorNotes || 
             char.creatorNotes || 
             char.creator_notes || 
+            char.metadata?.creatorNotes || 
+            char.metadata?.creator_notes || 
             char.data?.extensions?.charCreatorNotes || 
             char.data?.extensions?.creatorNotes || 
             char.data?.creator_notes || 

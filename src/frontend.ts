@@ -149,6 +149,7 @@ export function setup(ctx: SpindleFrontendContext) {
       </div>
       
       <div id="lg-settings-status" style="margin-top: 20px; color: var(--lumiverse-text-muted); font-size: 12px;">Waiting for backend...</div>
+      <div id="lg-settings-debug" style="margin-top: 8px; color: var(--lumiverse-text-dim); font-size: 10px;"></div>
     </div>
   `;
 
@@ -159,6 +160,9 @@ export function setup(ctx: SpindleFrontendContext) {
     try { localStorage.setItem('lookingglass_renderer', activeRenderer); } catch(e){}
     applyRendererMode();
   });
+
+  const debugEl = tab.root.querySelector('#lg-settings-debug') as HTMLElement;
+  const statusEl = tab.root.querySelector('#lg-settings-status') as HTMLElement;
 
   // 2. Float Widget
   const widget = ctx.ui.createFloatWidget({
@@ -192,16 +196,40 @@ export function setup(ctx: SpindleFrontendContext) {
     }
   });
 
-  // 3. Profile Panel DOM Observer
+  // 3. Shadow DOM Piercing Helper
+  function findInShadows(selector: string, root: ParentNode = document): Element | null {
+    const el = root.querySelector(selector);
+    if (el) return el;
+    
+    const all = root.querySelectorAll('*');
+    for (const node of Array.from(all)) {
+      if (node.shadowRoot) {
+        const found = findInShadows(selector, node.shadowRoot);
+        if (found) return found;
+      }
+    }
+    return null;
+  }
+
+  // 4. Profile Panel DOM Observer
   let profileSectionNode: HTMLElement | null = null;
   const profileObserver = new MutationObserver(() => {
     if (activeRenderer !== 'profile' || isCleaningUp) return;
     
-    // Look for the Profile panel container
-    // We try multiple selectors to find the profile panel wrapper
-    const profileContainer = document.querySelector(
-      '[class*="CharacterProfile_profile__"], [class*="CharacterProfile_groupProfile__"], .profile, .groupProfile, [class*="CharacterProfile_profile"]'
-    );
+    // Look for the Profile panel container, potentially inside shadow roots
+    const selectors = [
+      '[class*="CharacterProfile_profile__"]',
+      '[class*="CharacterProfile_groupProfile__"]',
+      '.profile',
+      '.groupProfile',
+      '[class*="CharacterProfile_profile"]'
+    ];
+    
+    let profileContainer: Element | null = null;
+    for (const s of selectors) {
+      profileContainer = findInShadows(s);
+      if (profileContainer) break;
+    }
     
     if (profileContainer) {
       if (!profileSectionNode || !profileContainer.contains(profileSectionNode)) {
@@ -273,19 +301,44 @@ export function setup(ctx: SpindleFrontendContext) {
     }
   }
 
-  // Listen to Backend
+  // 5. Listen to Backend
+  let lastBackendUpdate = 0;
   const unsubBackend = ctx.onBackendMessage(async (payload: any) => {
     if (payload.type === 'creator_notes') {
+      lastBackendUpdate = Date.now();
       currentNotes = payload.content;
       await renderNotesToDOM();
       
-      const statusEl = tab.root.querySelector('#lg-settings-status');
-      if (statusEl) statusEl.textContent = 'Notes loaded successfully.';
+      if (statusEl) {
+        if (payload.error) {
+          statusEl.textContent = `Error: ${payload.error}`;
+          statusEl.style.color = 'var(--lumiverse-error)';
+        } else {
+          statusEl.textContent = 'Notes loaded successfully.';
+          statusEl.style.color = 'var(--lumiverse-text-muted)';
+        }
+      }
+      if (debugEl) {
+        debugEl.textContent = `Last update: ${new Date().toLocaleTimeString()} (Length: ${currentNotes.length})`;
+      }
     }
   });
 
-  // Request initial data
-  ctx.sendToBackend({ type: 'get_creator_notes' });
+  // 6. Request data with retry
+  function requestNotes() {
+    if (isCleaningUp) return;
+    ctx.sendToBackend({ type: 'get_creator_notes' });
+    
+    // If no response after 5 seconds, retry once (maybe backend worker was sleeping)
+    setTimeout(() => {
+      if (lastBackendUpdate === 0 && !isCleaningUp) {
+        ctx.sendToBackend({ type: 'get_creator_notes' });
+        if (debugEl) debugEl.textContent = 'Retrying backend request...';
+      }
+    }, 5000);
+  }
+
+  requestNotes();
 
   // Initial apply
   applyRendererMode();
