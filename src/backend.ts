@@ -16,13 +16,16 @@ export function setup() {
           return;
         }
 
-        // Exhaustive search for creator notes / charCreatorNotes
+        // Exhaustive search for creator notes
         const char = character as any;
         const notes = 
           char.extensions?.charCreatorNotes || 
+          char.extensions?.creatorNotes || 
           char.charCreatorNotes || 
+          char.creatorNotes || 
           char.creator_notes || 
           char.data?.extensions?.charCreatorNotes || 
+          char.data?.extensions?.creatorNotes || 
           char.data?.creator_notes || 
           '';
         
@@ -42,9 +45,12 @@ export function setup() {
           const char = character as any;
           const notes = 
             char.extensions?.charCreatorNotes || 
+            char.extensions?.creatorNotes || 
             char.charCreatorNotes || 
+            char.creatorNotes || 
             char.creator_notes || 
             char.data?.extensions?.charCreatorNotes || 
+            char.data?.extensions?.creatorNotes || 
             char.data?.creator_notes || 
             '';
           spindle.sendToFrontend({ type: 'creator_notes', content: notes });
