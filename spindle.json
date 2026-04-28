@@ -3,8 +3,8 @@
   "name": "LookingGlass",
   "identifier": "looking_glass",
   "author": "Eleisea",
-  "github": "https://github.com/Eleisea/LookingGlass",
-  "homepage": "https://github.com/Eleisea",
+  "github": "https://github.com/Eleisea/looking-glass",
+  "homepage": "https://github.com/Eleisea/looking-glass",
   "description": "Renders the Creator's Notes of a character card in a Drawer Tab and an optional Float Widget.",
   "permissions": [
     "chats",
