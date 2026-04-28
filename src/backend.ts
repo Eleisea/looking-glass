@@ -16,8 +16,25 @@ export function setup() {
           return;
         }
 
-        spindle.sendToFrontend({ type: 'creator_notes', content: character.creator_notes || '' }, userId);
+        // Exhaustive search for creator notes
+        const char = character as any;
+        const notes = 
+          char.extensions?.charCreatorNotes || 
+          char.extensions?.creatorNotes || 
+          char.charCreatorNotes || 
+          char.creatorNotes || 
+          char.creator_notes || 
+          char.metadata?.creatorNotes || 
+          char.metadata?.creator_notes || 
+          char.data?.extensions?.charCreatorNotes || 
+          char.data?.extensions?.creatorNotes || 
+          char.data?.creator_notes || 
+          '';
+        
+        spindle.log.info(`[LookingGlass] Found notes for ${char.name} (length: ${notes.length}). Fields present: ${Object.keys(char).join(', ')}`);
+        spindle.sendToFrontend({ type: 'creator_notes', content: notes }, userId);
       } catch (err) {
+        spindle.log.error(`[LookingGlass] Error fetching notes: ${err}`);
         spindle.sendToFrontend({ type: 'creator_notes', content: '', error: String(err) }, userId);
       }
     }
@@ -29,8 +46,20 @@ export function setup() {
       if (chat) {
         const character = await spindle.characters.get(chat.character_id);
         if (character) {
-          // Broadcast to all users using this extension
-          spindle.sendToFrontend({ type: 'creator_notes', content: character.creator_notes || '' });
+          const char = character as any;
+          const notes = 
+            char.extensions?.charCreatorNotes || 
+            char.extensions?.creatorNotes || 
+            char.charCreatorNotes || 
+            char.creatorNotes || 
+            char.creator_notes || 
+            char.metadata?.creatorNotes || 
+            char.metadata?.creator_notes || 
+            char.data?.extensions?.charCreatorNotes || 
+            char.data?.extensions?.creatorNotes || 
+            char.data?.creator_notes || 
+            '';
+          spindle.sendToFrontend({ type: 'creator_notes', content: notes });
         }
       }
     } catch (err) {
