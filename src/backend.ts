@@ -3,14 +3,19 @@ import type { SpindleBackendContext } from "lumiverse-spindle-types";
 export function setup(spindle: SpindleBackendContext) {
   spindle.log.info("Looking Glass backend starting...");
 
-  spindle.onFrontendMessage(async (msg: any) => {
+  spindle.onFrontendMessage(async (msg: any, userId: string) => {
+    spindle.log.info(`Received message from frontend: ${msg.type} (user: ${userId})`);
+
     if (msg.type === "get_notes") {
       try {
         const activeChat = await spindle.chats.getActive();
         if (!activeChat) {
-          spindle.sendToFrontend({ type: "notes_result", notes: "No active chat found." });
+          spindle.log.warn("No active chat found when requesting notes.");
+          spindle.sendToFrontend({ type: "notes_result", notes: "No active chat found." }, userId);
           return;
         }
+
+        spindle.log.info(`Resolving notes for chat ${activeChat.id} (char: ${activeChat.character_id})`);
 
         const { text } = await spindle.macros.resolve("{{charCreatorNotes}}", {
           chatId: activeChat.id,
@@ -18,16 +23,18 @@ export function setup(spindle: SpindleBackendContext) {
           commit: false,
         });
 
-        spindle.sendToFrontend({ type: "notes_result", notes: text || "No creator notes found for this character." });
+        spindle.log.info(`Successfully resolved notes (${text?.length || 0} chars)`);
+        spindle.sendToFrontend({ type: "notes_result", notes: text || "No creator notes found for this character." }, userId);
       } catch (err) {
         spindle.log.error("Failed to resolve creator notes:", err);
-        spindle.sendToFrontend({ type: "notes_result", notes: "Error: Failed to load notes." });
+        spindle.sendToFrontend({ type: "notes_result", notes: "Error: Failed to load notes." }, userId);
       }
     }
   });
 
-  // Also listen for chat switches to notify frontend (optional, frontend can also check)
+  // Also listen for chat switches to notify frontend
   spindle.on("CHAT_SWITCHED", (payload) => {
+    spindle.log.info(`Chat switched to ${payload.chatId}, notifying frontend`);
     spindle.sendToFrontend({ type: "chat_switched", chatId: payload.chatId });
   });
 }

@@ -1,8 +1,10 @@
 // src/ui/styles.ts
 var NOTES_CSS = `
 .lg-float-widget {
-  width: 100%;
-  height: 100%;
+  width: 48px;
+  height: 48px;
+  aspect-ratio: 1 / 1;
+  flex: 0 0 48px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -12,6 +14,7 @@ var NOTES_CSS = `
   transition: transform 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275), box-shadow 0.2s ease;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
   border: 1px solid var(--lumiverse-border);
+  overflow: hidden;
 }
 
 .lg-float-widget:hover {
@@ -366,20 +369,22 @@ function setup(ctx) {
     localStorage.setItem(POS_KEY, JSON.stringify(pos));
   });
   function requestNotes() {
+    console.log("[Looking Glass] Requesting notes from backend...");
     ctx.sendToBackend({ type: "get_notes" });
   }
   widgetContent.addEventListener("click", (e) => {
     e.stopPropagation();
     windowUI.toggle();
-    if (!ctx.dom.query(".lg-window").classList.contains("hidden")) {
+    if (!windowUI.root.classList.contains("hidden")) {
       requestNotes();
     }
   });
   const msgUnsub = ctx.onBackendMessage((msg) => {
+    console.log("[Looking Glass] Received message from backend:", msg.type);
     if (msg.type === "notes_result") {
       windowUI.updateContent(msg.notes);
     } else if (msg.type === "chat_switched") {
-      if (!ctx.dom.query(".lg-window").classList.contains("hidden")) {
+      if (!windowUI.root.classList.contains("hidden")) {
         requestNotes();
       }
     }

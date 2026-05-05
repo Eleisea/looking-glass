@@ -1,7 +1,9 @@
 export const NOTES_CSS = `
 .lg-float-widget {
-  width: 100%;
-  height: 100%;
+  width: 48px;
+  height: 48px;
+  aspect-ratio: 1 / 1;
+  flex: 0 0 48px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -11,6 +13,7 @@ export const NOTES_CSS = `
   transition: transform 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275), box-shadow 0.2s ease;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
   border: 1px solid var(--lumiverse-border);
+  overflow: hidden;
 }
 
 .lg-float-widget:hover {

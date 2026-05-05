@@ -42,24 +42,26 @@ export function setup(ctx: SpindleFrontendContext) {
 
   // 4. Handle interactions
   function requestNotes() {
+    console.log("[Looking Glass] Requesting notes from backend...");
     ctx.sendToBackend({ type: "get_notes" });
   }
 
   widgetContent.addEventListener("click", (e) => {
     e.stopPropagation();
     windowUI.toggle();
-    if (!ctx.dom.query(".lg-window").classList.contains("hidden")) {
+    if (!windowUI.root.classList.contains("hidden")) {
       requestNotes();
     }
   });
 
   // 5. Backend message handling
   const msgUnsub = ctx.onBackendMessage((msg: any) => {
+    console.log("[Looking Glass] Received message from backend:", msg.type);
     if (msg.type === "notes_result") {
       windowUI.updateContent(msg.notes);
     } else if (msg.type === "chat_switched") {
       // Refresh notes if window is open
-      if (!ctx.dom.query(".lg-window").classList.contains("hidden")) {
+      if (!windowUI.root.classList.contains("hidden")) {
         requestNotes();
       }
     }
