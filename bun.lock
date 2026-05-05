@@ -1,0 +1,26 @@
+{
+  "lockfileVersion": 1,
+  "configVersion": 1,
+  "workspaces": {
+    "": {
+      "name": "lumiverse-looking-glass",
+      "dependencies": {
+        "@types/marked": "^6.0.0",
+        "marked": "^18.0.3",
+      },
+      "devDependencies": {
+        "lumiverse-spindle-types": "0.4.19",
+        "typescript": "^5.7.3",
+      },
+    },
+  },
+  "packages": {
+    "@types/marked": ["@types/marked@6.0.0", "", { "dependencies": { "marked": "*" } }, "sha512-jmjpa4BwUsmhxcfsgUit/7A9KbrC48Q0q8KvnY107ogcjGgTFDlIL3RpihNpx2Mu1hM4mdFQjoVc4O6JoGKHsA=="],
+
+    "lumiverse-spindle-types": ["lumiverse-spindle-types@0.4.19", "", {}, "sha512-t0T/nSLEf8RTwRJS8GK/90ibz3RHuQJZ5xM3vY17LDFs02o/YcIRuqMphTuU3lFMsmxuQ4Eji9Vc3ld9eXz16g=="],
+
+    "marked": ["marked@18.0.3", "", { "bin": { "marked": "bin/marked.js" } }, "sha512-7VT90JOkDeaRWpfjOReRGPEKn0ecdARBkDGL+tT1wZY0efPPqkUxLUSmzy/C7TIylQYJC9STISEsCHrqb/7VIA=="],
+
+    "typescript": ["typescript@5.9.3", "", { "bin": { "tsc": "bin/tsc", "tsserver": "bin/tsserver" } }, "sha512-jl1vZzPDinLr9eUt3J/t7V6FgNEw9QjvBPdysz9KfQDD41fQrC2Y4vKQdiaUpFT4bXlb1RHhLpp8wtm6M5TgSw=="],
+  }
+}

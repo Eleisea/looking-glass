@@ -12,5 +12,9 @@
   "devDependencies": {
     "lumiverse-spindle-types": "0.4.19",
     "typescript": "^5.7.3"
+  },
+  "dependencies": {
+    "@types/marked": "^6.0.0",
+    "marked": "^18.0.3"
   }
 }

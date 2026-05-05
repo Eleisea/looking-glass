@@ -3,6 +3,7 @@ const ICON_GLASS = `<svg xmlns="http://www.w3.org/2000/svg" width="32" height="3
 const ICON_EMPTY = `<svg viewBox="0 0 24 24" fill="currentColor"><path d="M14 2H6c-1.1 0-1.99.9-1.99 2L4 20c0 1.1.89 2 1.99 2H18c1.1 0 2-.9 2-2V8l-6-6zm2 16H8v-2h8v2zm0-4H8v-2h8v2zm-3-5V3.5L18.5 9H13z"/></svg>`;
 
 import { NOTES_CSS } from "./styles";
+import { marked } from "marked";
 
 export interface NotesWindow {
   root: HTMLElement;
@@ -163,15 +164,10 @@ export function createNotesWindow(): NotesWindow {
   }
 
   function updateContent(html: string) {
-    if (!html.includes("<p>") && !html.includes("<div>") && !html.includes("<style>")) {
-      const formatted = html
-        .split("\n\n")
-        .map(p => `<p>${p.replace(/\n/g, "<br>")}</p>`)
-        .join("");
-      content.innerHTML = formatted;
-    } else {
-      content.innerHTML = html;
-    }
+    // Parse the markdown using marked
+    Promise.resolve(marked.parse(html)).then((parsed) => {
+      content.innerHTML = parsed as string;
+    });
   }
 
   function updateCharacterId(id: string) {
