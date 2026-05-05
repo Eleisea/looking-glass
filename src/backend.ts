@@ -1,69 +1,33 @@
-export function setup() {
-  const spindle = (globalThis as any).spindle;
+import type { SpindleBackendContext } from "lumiverse-spindle-types";
 
-  spindle.onFrontendMessage(async (payload: any, userId: string) => {
-    if (payload.type === 'get_creator_notes') {
+export function setup(spindle: SpindleBackendContext) {
+  spindle.log.info("Looking Glass backend starting...");
+
+  spindle.onFrontendMessage(async (msg: any) => {
+    if (msg.type === "get_notes") {
       try {
         const activeChat = await spindle.chats.getActive();
         if (!activeChat) {
-          spindle.sendToFrontend({ type: 'creator_notes', content: '', error: 'No active chat' }, userId);
+          spindle.sendToFrontend({ type: "notes_result", notes: "No active chat found." });
           return;
         }
 
-        const character = await spindle.characters.get(activeChat.character_id);
-        if (!character) {
-          spindle.sendToFrontend({ type: 'creator_notes', content: '', error: 'Character not found' }, userId);
-          return;
-        }
+        const { text } = await spindle.macros.resolve("{{charCreatorNotes}}", {
+          chatId: activeChat.id,
+          characterId: activeChat.character_id,
+          commit: false,
+        });
 
-        // Exhaustive search for creator notes
-        const char = character as any;
-        const notes = 
-          char.extensions?.charCreatorNotes || 
-          char.extensions?.creatorNotes || 
-          char.charCreatorNotes || 
-          char.creatorNotes || 
-          char.creator_notes || 
-          char.metadata?.creatorNotes || 
-          char.metadata?.creator_notes || 
-          char.data?.extensions?.charCreatorNotes || 
-          char.data?.extensions?.creatorNotes || 
-          char.data?.creator_notes || 
-          '';
-        
-        spindle.log.info(`[LookingGlass] Found notes for ${char.name} (length: ${notes.length}). Fields present: ${Object.keys(char).join(', ')}`);
-        spindle.sendToFrontend({ type: 'creator_notes', content: notes }, userId);
+        spindle.sendToFrontend({ type: "notes_result", notes: text || "No creator notes found for this character." });
       } catch (err) {
-        spindle.log.error(`[LookingGlass] Error fetching notes: ${err}`);
-        spindle.sendToFrontend({ type: 'creator_notes', content: '', error: String(err) }, userId);
+        spindle.log.error("Failed to resolve creator notes:", err);
+        spindle.sendToFrontend({ type: "notes_result", notes: "Error: Failed to load notes." });
       }
     }
   });
 
-  spindle.on('CHAT_CHANGED', async ({ chatId }: { chatId: string }) => {
-    try {
-      const chat = await spindle.chats.get(chatId);
-      if (chat) {
-        const character = await spindle.characters.get(chat.character_id);
-        if (character) {
-          const char = character as any;
-          const notes = 
-            char.extensions?.charCreatorNotes || 
-            char.extensions?.creatorNotes || 
-            char.charCreatorNotes || 
-            char.creatorNotes || 
-            char.creator_notes || 
-            char.metadata?.creatorNotes || 
-            char.metadata?.creator_notes || 
-            char.data?.extensions?.charCreatorNotes || 
-            char.data?.extensions?.creatorNotes || 
-            char.data?.creator_notes || 
-            '';
-          spindle.sendToFrontend({ type: 'creator_notes', content: notes });
-        }
-      }
-    } catch (err) {
-      // ignore
-    }
+  // Also listen for chat switches to notify frontend (optional, frontend can also check)
+  spindle.on("CHAT_SWITCHED", (payload) => {
+    spindle.sendToFrontend({ type: "chat_switched", chatId: payload.chatId });
   });
 }
