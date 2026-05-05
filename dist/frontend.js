@@ -40,11 +40,11 @@ var NOTES_CSS = `
   display: flex;
   flex-direction: column;
   background: var(--lg-window-bg, var(--lcs-glass-bg, var(--lumiverse-bg-elevated)));
-  backdrop-filter: blur(var(--lg-window-blur, var(--lcs-glass-blur, 12px)));
-  -webkit-backdrop-filter: blur(var(--lg-window-blur, var(--lcs-glass-blur, 12px)));
+  backdrop-filter: var(--lg-window-backdrop, blur(var(--lg-window-blur, var(--lcs-glass-blur, 12px))));
+  -webkit-backdrop-filter: var(--lg-window-backdrop, blur(var(--lg-window-blur, var(--lcs-glass-blur, 12px))));
   border: var(--lg-window-border, 1px solid var(--lcs-glass-border, var(--lumiverse-border)));
   border-radius: 16px;
-  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.4), var(--lumiverse-highlight-inset);
+  box-shadow: var(--lg-window-shadow, 0 20px 50px rgba(0, 0, 0, 0.4), var(--lumiverse-highlight-inset));
   overflow: hidden;
   transition: opacity 0.3s ease, transform 0.3s cubic-bezier(0.22, 1, 0.36, 1);
   min-width: 280px;
@@ -1544,12 +1544,17 @@ function createNotesWindow() {
   const baseStyle = document.createElement("style");
   baseStyle.textContent = NOTES_CSS;
   shadow.appendChild(baseStyle);
+  const body = document.createElement("body");
+  body.style.margin = "0";
+  body.style.padding = "0";
+  body.style.display = "contents";
   const root = document.createElement("div");
   root.className = "lg-window hidden";
   root.style.width = "400px";
   root.style.height = "500px";
   root.style.top = "100px";
   root.style.right = "100px";
+  root.style.pointerEvents = "auto";
   const STORAGE_KEY = "looking-glass-window-prefs";
   const saved = JSON.parse(localStorage.getItem(STORAGE_KEY) || "{}");
   if (saved.width)
@@ -1581,7 +1586,8 @@ function createNotesWindow() {
   root.appendChild(header);
   root.appendChild(content);
   root.appendChild(resizeHandle);
-  shadow.appendChild(root);
+  body.appendChild(root);
+  shadow.appendChild(body);
   document.body.appendChild(host);
   let isDragging = false;
   let isResizing = false;

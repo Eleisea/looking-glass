@@ -16,7 +16,6 @@ export interface NotesWindow {
 }
 
 export function createNotesWindow(): NotesWindow {
-  // We use a host element to anchor the ShadowRoot
   const host = document.createElement("div");
   host.className = "lg-window-host";
   host.style.position = "fixed";
@@ -25,15 +24,19 @@ export function createNotesWindow(): NotesWindow {
   host.style.width = "0";
   host.style.height = "0";
   host.style.zIndex = "10000";
-  // The host shouldn't block clicks
   host.style.pointerEvents = "none";
 
   const shadow = host.attachShadow({ mode: "open" });
 
-  // Inject the base CSS into the shadow root
   const baseStyle = document.createElement("style");
   baseStyle.textContent = NOTES_CSS;
   shadow.appendChild(baseStyle);
+
+  // We create a body element inside the shadow root to support ST-style "body" selectors
+  const body = document.createElement("body");
+  body.style.margin = "0";
+  body.style.padding = "0";
+  body.style.display = "contents"; // Ensure it doesn't break layout
 
   const root = document.createElement("div");
   root.className = "lg-window hidden";
@@ -41,6 +44,8 @@ export function createNotesWindow(): NotesWindow {
   root.style.height = "500px";
   root.style.top = "100px";
   root.style.right = "100px";
+  root.style.pointerEvents = "auto";
+
   // Persistent storage for position and size
   const STORAGE_KEY = "looking-glass-window-prefs";
   const saved = JSON.parse(localStorage.getItem(STORAGE_KEY) || "{}");
@@ -72,7 +77,8 @@ export function createNotesWindow(): NotesWindow {
   root.appendChild(header);
   root.appendChild(content);
   root.appendChild(resizeHandle);
-  shadow.appendChild(root);
+  body.appendChild(root);
+  shadow.appendChild(body);
   document.body.appendChild(host);
 
   let isDragging = false;
@@ -146,7 +152,6 @@ export function createNotesWindow(): NotesWindow {
 
   function show() {
     root.classList.remove("hidden");
-    // Ensure it's on screen
     const rect = root.getBoundingClientRect();
     if (rect.top < 0) root.style.top = "0px";
     if (rect.left < 0) root.style.left = "0px";
@@ -164,7 +169,6 @@ export function createNotesWindow(): NotesWindow {
   }
 
   function updateContent(html: string) {
-    // Parse the markdown using marked
     Promise.resolve(marked.parse(html)).then((parsed) => {
       content.innerHTML = parsed as string;
     });
@@ -175,7 +179,7 @@ export function createNotesWindow(): NotesWindow {
   }
 
   return {
-    root: host, // Return host so cleanups remove the entire shadow DOM tree
+    root: host,
     show,
     hide,
     toggle,

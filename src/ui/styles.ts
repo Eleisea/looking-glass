@@ -39,11 +39,11 @@ export const NOTES_CSS = `
   display: flex;
   flex-direction: column;
   background: var(--lg-window-bg, var(--lcs-glass-bg, var(--lumiverse-bg-elevated)));
-  backdrop-filter: blur(var(--lg-window-blur, var(--lcs-glass-blur, 12px)));
-  -webkit-backdrop-filter: blur(var(--lg-window-blur, var(--lcs-glass-blur, 12px)));
+  backdrop-filter: var(--lg-window-backdrop, blur(var(--lg-window-blur, var(--lcs-glass-blur, 12px))));
+  -webkit-backdrop-filter: var(--lg-window-backdrop, blur(var(--lg-window-blur, var(--lcs-glass-blur, 12px))));
   border: var(--lg-window-border, 1px solid var(--lcs-glass-border, var(--lumiverse-border)));
   border-radius: 16px;
-  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.4), var(--lumiverse-highlight-inset);
+  box-shadow: var(--lg-window-shadow, 0 20px 50px rgba(0, 0, 0, 0.4), var(--lumiverse-highlight-inset));
   overflow: hidden;
   transition: opacity 0.3s ease, transform 0.3s cubic-bezier(0.22, 1, 0.36, 1);
   min-width: 280px;
