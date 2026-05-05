@@ -51,6 +51,7 @@ var NOTES_CSS = `
   min-height: 200px;
   color: var(--lumiverse-text);
   font-family: var(--lumiverse-font-sans, system-ui, -apple-system, sans-serif);
+  pointer-events: auto;
 }
 
 .lg-window[data-lg-window] {
@@ -223,7 +224,6 @@ function createNotesWindow() {
   root.style.height = "500px";
   root.style.top = "100px";
   root.style.right = "100px";
-  root.style.pointerEvents = "auto";
   const STORAGE_KEY = "looking-glass-window-prefs";
   const saved = JSON.parse(localStorage.getItem(STORAGE_KEY) || "{}");
   if (saved.width)

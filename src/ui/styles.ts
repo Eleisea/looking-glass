@@ -50,6 +50,7 @@ export const NOTES_CSS = `
   min-height: 200px;
   color: var(--lumiverse-text);
   font-family: var(--lumiverse-font-sans, system-ui, -apple-system, sans-serif);
+  pointer-events: auto;
 }
 
 .lg-window[data-lg-window] {

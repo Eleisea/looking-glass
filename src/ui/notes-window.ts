@@ -40,9 +40,6 @@ export function createNotesWindow(): NotesWindow {
   root.style.height = "500px";
   root.style.top = "100px";
   root.style.right = "100px";
-  // The window itself should receive clicks
-  root.style.pointerEvents = "auto";
-
   // Persistent storage for position and size
   const STORAGE_KEY = "looking-glass-window-prefs";
   const saved = JSON.parse(localStorage.getItem(STORAGE_KEY) || "{}");
