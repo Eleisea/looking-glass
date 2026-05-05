@@ -12,7 +12,7 @@ export function setup(ctx: SpindleFrontendContext) {
   cleanups.push(removeStyle);
 
   // 2. Create the notes window
-  const windowUI = createNotesWindow();
+  const windowUI = createNotesWindow(ctx);
   cleanups.push(() => windowUI.destroy());
 
   // 3. Create the float widget

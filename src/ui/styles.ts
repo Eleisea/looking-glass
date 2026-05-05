@@ -115,12 +115,10 @@ export const NOTES_CSS = `
 
 .lg-window-content {
   flex: 1;
-  padding: 20px;
-  overflow-y: auto;
+  padding: 0;
+  overflow: hidden;
   line-height: 1.6;
   font-size: 14px;
-  scrollbar-width: thin;
-  scrollbar-color: var(--lumiverse-border) transparent;
 }
 
 .lg-window-content::-webkit-scrollbar {
