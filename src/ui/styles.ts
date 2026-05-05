@@ -197,4 +197,107 @@ export const NOTES_CSS = `
   height: 48px;
   opacity: 0.2;
 }
+
+/* Settings Panel */
+.lg-settings-panel {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: var(--lumiverse-bg-elevated);
+  z-index: 100;
+  display: flex;
+  flex-direction: column;
+  animation: slideIn 0.3s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+@keyframes slideIn {
+  from { transform: translateX(100%); opacity: 0; }
+  to { transform: translateX(0); opacity: 1; }
+}
+
+.lg-settings-header {
+  padding: 12px 16px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border-bottom: 1px solid var(--lumiverse-border);
+  font-weight: 600;
+  color: var(--lumiverse-accent);
+}
+
+.lg-settings-close {
+  background: none;
+  border: none;
+  color: var(--lumiverse-text-muted);
+  cursor: pointer;
+  padding: 4px;
+  border-radius: 4px;
+  display: flex;
+}
+
+.lg-settings-close:hover {
+  background: var(--lumiverse-fill-hover);
+  color: var(--lumiverse-text);
+}
+
+.lg-settings-body {
+  padding: 16px;
+  flex: 1;
+  overflow-y: auto;
+}
+
+.lg-setting-item {
+  margin-bottom: 20px;
+}
+
+.lg-setting-item label {
+  display: block;
+  font-size: 0.85rem;
+  font-weight: 600;
+  margin-bottom: 6px;
+  color: var(--lumiverse-text);
+}
+
+.lg-setting-item select {
+  width: 100%;
+  padding: 8px;
+  border-radius: 6px;
+  background: var(--lumiverse-fill-subtle);
+  border: 1px solid var(--lumiverse-border);
+  color: var(--lumiverse-text);
+  font-family: inherit;
+  outline: none;
+}
+
+.lg-setting-item select:focus {
+  border-color: var(--lumiverse-accent);
+}
+
+.lg-setting-hint {
+  font-size: 0.75rem;
+  color: var(--lumiverse-text-muted);
+  margin: 6px 0 0 0;
+  line-height: 1.4;
+}
+
+.lg-checkbox-label {
+  display: flex !important;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+}
+
+.lg-checkbox-label input {
+  margin: 0;
+  width: 16px;
+  height: 16px;
+  accent-color: var(--lumiverse-accent);
+}
+
+.lg-setting-item.disabled {
+  opacity: 0.5;
+  pointer-events: none;
+}
 `;
