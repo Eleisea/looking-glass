@@ -16,6 +16,7 @@ spindle.onFrontendMessage(async (msg, userId) => {
       const { text } = await spindle.macros.resolve("{{charCreatorNotes}}", {
         chatId: activeChat.id,
         characterId: activeChat.character_id,
+        userId,
         commit: false
       });
       spindle.log.info(`Successfully resolved notes (${text?.length || 0} chars)`);
