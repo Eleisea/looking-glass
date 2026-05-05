@@ -39,10 +39,10 @@ var NOTES_CSS = `
   z-index: 10000;
   display: flex;
   flex-direction: column;
-  background: var(--lcs-glass-bg, var(--lumiverse-bg-elevated));
-  backdrop-filter: blur(var(--lcs-glass-blur, 12px));
-  -webkit-backdrop-filter: blur(var(--lcs-glass-blur, 12px));
-  border: 1px solid var(--lcs-glass-border, var(--lumiverse-border));
+  background: var(--lg-window-bg, var(--lcs-glass-bg, var(--lumiverse-bg-elevated)));
+  backdrop-filter: blur(var(--lg-window-blur, var(--lcs-glass-blur, 12px)));
+  -webkit-backdrop-filter: blur(var(--lg-window-blur, var(--lcs-glass-blur, 12px)));
+  border: var(--lg-window-border, 1px solid var(--lcs-glass-border, var(--lumiverse-border)));
   border-radius: 16px;
   box-shadow: 0 20px 50px rgba(0, 0, 0, 0.4), var(--lumiverse-highlight-inset);
   overflow: hidden;
@@ -51,6 +51,10 @@ var NOTES_CSS = `
   min-height: 200px;
   color: var(--lumiverse-text);
   font-family: var(--lumiverse-font-sans, system-ui, -apple-system, sans-serif);
+}
+
+.lg-window[data-lg-window] {
+  /* Scope for internal overrides */
 }
 
 .lg-window.hidden {
@@ -64,10 +68,11 @@ var NOTES_CSS = `
   display: flex;
   align-items: center;
   justify-content: space-between;
-  background: rgba(255, 255, 255, 0.03);
+  background: var(--lg-header-bg, rgba(255, 255, 255, 0.03));
   border-bottom: 1px solid var(--lumiverse-border);
   cursor: grab;
   user-select: none;
+  z-index: 2;
 }
 
 .lg-window-header:active {
@@ -320,7 +325,7 @@ function createNotesWindow() {
       hide();
   }
   function updateContent(html) {
-    if (!html.includes("<p>") && !html.includes("<div>")) {
+    if (!html.includes("<p>") && !html.includes("<div>") && !html.includes("<style>")) {
       const formatted = html.split(`
 
 `).map((p) => `<p>${p.replace(/\n/g, "<br>")}</p>`).join("");
@@ -329,12 +334,16 @@ function createNotesWindow() {
       content.innerHTML = html;
     }
   }
+  function updateCharacterId(id) {
+    root.setAttribute("data-char-id", id);
+  }
   return {
     root,
     show,
     hide,
     toggle,
     updateContent,
+    updateCharacterId,
     destroy() {
       root.remove();
     }
@@ -382,6 +391,8 @@ function setup(ctx) {
   const msgUnsub = ctx.onBackendMessage((msg) => {
     console.log("[Looking Glass] Received message from backend:", msg.type, msg);
     if (msg.type === "notes_result") {
+      if (msg.characterId)
+        windowUI.updateCharacterId(msg.characterId);
       windowUI.updateContent(msg.notes);
     } else if (msg.type === "chat_switched") {
       if (!windowUI.root.classList.contains("hidden")) {

@@ -8,6 +8,7 @@ export interface NotesWindow {
   hide(): void;
   toggle(): void;
   updateContent(html: string): void;
+  updateCharacterId(id: string): void;
   destroy(): void;
 }
 
@@ -141,8 +142,9 @@ export function createNotesWindow(): NotesWindow {
   }
 
   function updateContent(html: string) {
-    // Simple text-to-html conversion for newlines if it's not already HTML
-    if (!html.includes("<p>") && !html.includes("<div>")) {
+    // If the content starts with <style> or contains it, we should probably 
+    // just inject it as is. 
+    if (!html.includes("<p>") && !html.includes("<div>") && !html.includes("<style>")) {
       const formatted = html
         .split("\n\n")
         .map(p => `<p>${p.replace(/\n/g, "<br>")}</p>`)
@@ -150,7 +152,15 @@ export function createNotesWindow(): NotesWindow {
       content.innerHTML = formatted;
     } else {
       content.innerHTML = html;
+      
+      // If there are scripts in the HTML, they won't execute via innerHTML.
+      // We manually find and execute them if needed, but for now we focus on styles.
+      // Styles DO work via innerHTML in most modern browsers.
     }
+  }
+
+  function updateCharacterId(id: string) {
+    root.setAttribute("data-char-id", id);
   }
 
   return {
@@ -159,6 +169,7 @@ export function createNotesWindow(): NotesWindow {
     hide,
     toggle,
     updateContent,
+    updateCharacterId,
     destroy() {
       root.remove();
     }

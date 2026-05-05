@@ -58,6 +58,7 @@ export function setup(ctx: SpindleFrontendContext) {
   const msgUnsub = ctx.onBackendMessage((msg: any) => {
     console.log("[Looking Glass] Received message from backend:", msg.type, msg);
     if (msg.type === "notes_result") {
+      if (msg.characterId) windowUI.updateCharacterId(msg.characterId);
       windowUI.updateContent(msg.notes);
     } else if (msg.type === "chat_switched") {
       // Refresh notes if window is open

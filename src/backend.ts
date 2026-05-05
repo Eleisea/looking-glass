@@ -29,7 +29,11 @@ spindle.onFrontendMessage(async (msg: any, userId: string) => {
       });
 
       spindle.log.info(`Successfully resolved notes (${text?.length || 0} chars)`);
-      spindle.sendToFrontend({ type: "notes_result", notes: text || "No creator notes found for this character." }, userId);
+      spindle.sendToFrontend({ 
+        type: "notes_result", 
+        notes: text || "No creator notes found for this character.",
+        characterId: activeChat.character_id
+      }, userId);
     } catch (err: any) {
       const errorMsg = err?.message || String(err);
       spindle.log.error(`Failed to resolve creator notes: ${errorMsg}`);
