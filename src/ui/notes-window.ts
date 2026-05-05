@@ -2,6 +2,8 @@ const ICON_CLOSE = `<svg viewBox="0 0 24 24" width="18" height="18" stroke="curr
 const ICON_GLASS = `<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 32 32"><g fill="currentColor"><path d="M16 27.15c3.733 0 6.76-4.867 6.76-10.87S19.733 5.41 16 5.41s-6.76 4.867-6.76 10.87S12.267 27.15 16 27.15m5.76-10.87c0 2.845-.72 5.373-1.83 7.158c-1.118 1.8-2.535 2.712-3.93 2.712s-2.812-.912-3.93-2.712a11 11 0 0 1-1.024-2.172l9.85-10.134c.543 1.49.864 3.249.864 5.148"/><path d="M16 1a5.67 5.67 0 0 0-4.719 2.525l-1.024 1.536a3 3 0 0 1-1.154 1.02l-1.583.79a5 5 0 0 0-2.303 6.568l.601 1.304a3 3 0 0 1 0 2.514l-.601 1.304a5 5 0 0 0 2.303 6.567l1.583.791a3 3 0 0 1 1.154 1.02l1.024 1.536a5.67 5.67 0 0 0 9.438 0l1.024-1.536a3 3 0 0 1 1.154-1.02l1.583-.79a5 5 0 0 0 2.303-6.568l-.602-1.304a3 3 0 0 1 0-2.514l.602-1.304a5 5 0 0 0-2.303-6.567l-1.583-.791a3 3 0 0 1-1.154-1.02l-1.024-1.536A5.67 5.67 0 0 0 15.999 1m-3.055 3.635a3.67 3.67 0 0 1 6.11 0l1.024 1.536a5 5 0 0 0 1.924 1.698l1.582.792a3 3 0 0 1 1.382 3.94l-.601 1.304a5 5 0 0 0 0 4.19l.601 1.304a3 3 0 0 1-1.382 3.94l-1.582.792a5 5 0 0 0-1.924 1.698l-1.024 1.536a3.67 3.67 0 0 1-6.11 0l-1.024-1.536a5 5 0 0 0-1.924-1.698l-1.582-.792a3 3 0 0 1-1.382-3.94l.601-1.304a5 5 0 0 0 0-4.19l-.6-1.305a3 3 0 0 1 1.382-3.94l1.582-.792a5 5 0 0 0 1.924-1.698z"/></g></svg>`;
 const ICON_EMPTY = `<svg viewBox="0 0 24 24" fill="currentColor"><path d="M14 2H6c-1.1 0-1.99.9-1.99 2L4 20c0 1.1.89 2 1.99 2H18c1.1 0 2-.9 2-2V8l-6-6zm2 16H8v-2h8v2zm0-4H8v-2h8v2zm-3-5V3.5L18.5 9H13z"/></svg>`;
 
+import { NOTES_CSS } from "./styles";
+
 export interface NotesWindow {
   root: HTMLElement;
   show(): void;
@@ -13,12 +15,33 @@ export interface NotesWindow {
 }
 
 export function createNotesWindow(): NotesWindow {
+  // We use a host element to anchor the ShadowRoot
+  const host = document.createElement("div");
+  host.className = "lg-window-host";
+  host.style.position = "fixed";
+  host.style.top = "0";
+  host.style.left = "0";
+  host.style.width = "0";
+  host.style.height = "0";
+  host.style.zIndex = "10000";
+  // The host shouldn't block clicks
+  host.style.pointerEvents = "none";
+
+  const shadow = host.attachShadow({ mode: "open" });
+
+  // Inject the base CSS into the shadow root
+  const baseStyle = document.createElement("style");
+  baseStyle.textContent = NOTES_CSS;
+  shadow.appendChild(baseStyle);
+
   const root = document.createElement("div");
   root.className = "lg-window hidden";
   root.style.width = "400px";
   root.style.height = "500px";
   root.style.top = "100px";
   root.style.right = "100px";
+  // The window itself should receive clicks
+  root.style.pointerEvents = "auto";
 
   // Persistent storage for position and size
   const STORAGE_KEY = "looking-glass-window-prefs";
@@ -51,7 +74,8 @@ export function createNotesWindow(): NotesWindow {
   root.appendChild(header);
   root.appendChild(content);
   root.appendChild(resizeHandle);
-  document.body.appendChild(root);
+  shadow.appendChild(root);
+  document.body.appendChild(host);
 
   let isDragging = false;
   let isResizing = false;
@@ -142,8 +166,6 @@ export function createNotesWindow(): NotesWindow {
   }
 
   function updateContent(html: string) {
-    // If the content starts with <style> or contains it, we should probably 
-    // just inject it as is. 
     if (!html.includes("<p>") && !html.includes("<div>") && !html.includes("<style>")) {
       const formatted = html
         .split("\n\n")
@@ -152,10 +174,6 @@ export function createNotesWindow(): NotesWindow {
       content.innerHTML = formatted;
     } else {
       content.innerHTML = html;
-      
-      // If there are scripts in the HTML, they won't execute via innerHTML.
-      // We manually find and execute them if needed, but for now we focus on styles.
-      // Styles DO work via innerHTML in most modern browsers.
     }
   }
 
@@ -164,14 +182,14 @@ export function createNotesWindow(): NotesWindow {
   }
 
   return {
-    root,
+    root: host, // Return host so cleanups remove the entire shadow DOM tree
     show,
     hide,
     toggle,
     updateContent,
     updateCharacterId,
     destroy() {
-      root.remove();
+      host.remove();
     }
   };
 }
