@@ -1,52 +1,36 @@
 import type { SpindleFrontendContext } from "lumiverse-spindle-types";
 import { NOTES_CSS } from "./ui/styles";
 import { createNotesWindow } from "./ui/notes-window";
+import { createSettingsUI } from "./ui/settings";
 
 const ICON_GLASS = `<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 32 32"><g fill="currentColor"><path d="M16 27.15c3.733 0 6.76-4.867 6.76-10.87S19.733 5.41 16 5.41s-6.76 4.867-6.76 10.87S12.267 27.15 16 27.15m5.76-10.87c0 2.845-.72 5.373-1.83 7.158c-1.118 1.8-2.535 2.712-3.93 2.712s-2.812-.912-3.93-2.712a11 11 0 0 1-1.024-2.172l9.85-10.134c.543 1.49.864 3.249.864 5.148"/><path d="M16 1a5.67 5.67 0 0 0-4.719 2.525l-1.024 1.536a3 3 0 0 1-1.154 1.02l-1.583.79a5 5 0 0 0-2.303 6.568l.601 1.304a3 3 0 0 1 0 2.514l-.601 1.304a5 5 0 0 0 2.303 6.567l1.583.791a3 3 0 0 1 1.154 1.02l1.024 1.536a5.67 5.67 0 0 0 9.438 0l1.024-1.536a3 3 0 0 1 1.154-1.02l1.583-.79a5 5 0 0 0 2.303-6.568l-.602-1.304a3 3 0 0 1 0-2.514l.602-1.304a5 5 0 0 0-2.303-6.567l-1.583-.791a3 3 0 0 1-1.154-1.02l-1.024-1.536A5.67 5.67 0 0 0 15.999 1m-3.055 3.635a3.67 3.67 0 0 1 6.11 0l1.024 1.536a5 5 0 0 0 1.924 1.698l1.582.792a3 3 0 0 1 1.382 3.94l-.601 1.304a5 5 0 0 0 0 4.19l.601 1.304a3 3 0 0 1-1.382 3.94l-1.582.792a5 5 0 0 0-1.924 1.698l-1.024 1.536a3.67 3.67 0 0 1-6.11 0l-1.024-1.536a5 5 0 0 0-1.924-1.698l-1.582-.792a3 3 0 0 1-1.382-3.94l.601-1.304a5 5 0 0 0 0-4.19l-.6-1.305a3 3 0 0 1 1.382-3.94l1.582-.792a5 5 0 0 0 1.924-1.698z"/></g></svg>`;
 
 export function setup(ctx: SpindleFrontendContext) {
   const cleanups: (() => void)[] = [];
 
-  // 1. Register Settings in Lumiverse UI
-  ctx.settings.register({
-    id: "renderMode",
-    type: "select",
-    label: "Style Rendering Mode",
-    description: "Global allows styles to affect the entire app. Window Only isolates them to the Looking Glass window.",
-    options: [
-      { label: "Window Only (Isolated)", value: "window" },
-      { label: "Global (Full App)", value: "global" }
-    ],
-    default: "window",
-  });
-
-  ctx.settings.register({
-    id: "alwaysInject",
-    type: "boolean",
-    label: "Always Apply Global Styles",
-    description: "Apply global styles even when the Looking Glass window is closed.",
-    default: false,
-  });
-
-  // 2. Add styles
+  // 1. Add base styles
   const removeStyle = ctx.dom.addStyle(NOTES_CSS);
   cleanups.push(removeStyle);
 
-  // 3. Create the notes window
+  // 2. Create the notes window
   const windowUI = createNotesWindow();
   cleanups.push(() => windowUI.destroy());
 
-  // Sync settings
-  const syncSettings = () => {
-    windowUI.updateSettings({
-      renderMode: ctx.settings.get("renderMode") as string,
-      alwaysInject: ctx.settings.get("alwaysInject") as boolean,
-    });
-  };
-  syncSettings();
-  
-  ctx.settings.onChanged("renderMode", syncSettings);
-  ctx.settings.onChanged("alwaysInject", syncSettings);
+  // 3. Mount Settings UI to the extensions settings area
+  const settingsMount = ctx.ui.mount("settings_extensions");
+  const settingsUI = createSettingsUI((settings) => {
+    windowUI.updateSettings(settings);
+  });
+  settingsMount.appendChild(settingsUI.root);
+  cleanups.push(() => settingsUI.destroy());
+
+  // Initial settings sync
+  const STORAGE_KEY = "looking-glass-settings";
+  const initialSettings = JSON.parse(localStorage.getItem(STORAGE_KEY) || JSON.stringify({
+    renderMode: "window",
+    alwaysInject: false,
+  }));
+  windowUI.updateSettings(initialSettings);
 
   // 4. Create the float widget
   const widget = ctx.ui.createFloatWidget({
@@ -79,7 +63,7 @@ export function setup(ctx: SpindleFrontendContext) {
   }
 
   // Pre-fetch if alwaysInject is true
-  if (ctx.settings.get("renderMode") === "global" && ctx.settings.get("alwaysInject")) {
+  if (initialSettings.renderMode === "global" && initialSettings.alwaysInject) {
     requestNotes();
   }
 
@@ -97,8 +81,8 @@ export function setup(ctx: SpindleFrontendContext) {
       if (msg.characterId) windowUI.updateCharacterId(msg.characterId);
       windowUI.updateContent(msg.notes);
     } else if (msg.type === "chat_switched") {
-      // Refresh notes if window is open OR alwaysInject is true
-      if (!windowUI.root.classList.contains("hidden") || (ctx.settings.get("renderMode") === "global" && ctx.settings.get("alwaysInject"))) {
+      const current = JSON.parse(localStorage.getItem(STORAGE_KEY) || "{}");
+      if (!windowUI.root.classList.contains("hidden") || (current.renderMode === "global" && current.alwaysInject)) {
         requestNotes();
       }
     }

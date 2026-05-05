@@ -1810,41 +1810,90 @@ function createNotesWindow() {
   };
 }
 
+// src/ui/settings.ts
+function createSettingsUI(onChanged) {
+  const STORAGE_KEY = "looking-glass-settings";
+  const settings = JSON.parse(localStorage.getItem(STORAGE_KEY) || JSON.stringify({
+    renderMode: "window",
+    alwaysInject: false
+  }));
+  const root = document.createElement("section");
+  root.className = "lg-settings-card";
+  root.style.cssText = `
+    background: var(--lumiverse-bg-elevated);
+    border: 1px solid var(--lumiverse-border);
+    border-radius: 12px;
+    padding: 16px;
+    margin-bottom: 16px;
+  `;
+  const header = document.createElement("header");
+  header.style.marginBottom = "16px";
+  header.innerHTML = `<h3 style="margin:0; color:var(--lumiverse-accent);">Looking Glass</h3>`;
+  const body = document.createElement("div");
+  const modeItem = document.createElement("div");
+  modeItem.style.marginBottom = "16px";
+  modeItem.innerHTML = `
+    <label style="display:block; font-weight:600; margin-bottom:4px;">Style Rendering Mode</label>
+    <select id="lg-mode-select" style="width:100%; padding:8px; border-radius:6px; background:var(--lumiverse-fill-subtle); color:inherit; border:1px solid var(--lumiverse-border);">
+      <option value="window" ${settings.renderMode === "window" ? "selected" : ""}>Window Only (Isolated)</option>
+      <option value="global" ${settings.renderMode === "global" ? "selected" : ""}>Global (Entire App)</option>
+    </select>
+    <p style="font-size:0.8em; opacity:0.6; margin-top:4px;">Global allows character notes to re-theme the entire Lumiverse interface.</p>
+  `;
+  const alwaysItem = document.createElement("div");
+  alwaysItem.id = "lg-always-container";
+  alwaysItem.style.opacity = settings.renderMode === "window" ? "0.5" : "1";
+  alwaysItem.innerHTML = `
+    <label style="display:flex; align-items:center; gap:8px; cursor:pointer;">
+      <input type="checkbox" id="lg-always-check" ${settings.alwaysInject ? "checked" : ""} ${settings.renderMode === "window" ? "disabled" : ""}>
+      <span>Always Apply Global Styles</span>
+    </label>
+    <p style="font-size:0.8em; opacity:0.6; margin-top:4px;">Apply global styles even when the Looking Glass window is closed.</p>
+  `;
+  body.appendChild(modeItem);
+  body.appendChild(alwaysItem);
+  root.appendChild(header);
+  root.appendChild(body);
+  const modeSelect = modeItem.querySelector("#lg-mode-select");
+  const alwaysCheck = alwaysItem.querySelector("#lg-always-check");
+  function update() {
+    settings.renderMode = modeSelect.value;
+    settings.alwaysInject = alwaysCheck.checked;
+    alwaysItem.style.opacity = settings.renderMode === "window" ? "0.5" : "1";
+    alwaysCheck.disabled = settings.renderMode === "window";
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(settings));
+    onChanged(settings);
+  }
+  modeSelect.addEventListener("change", update);
+  alwaysCheck.addEventListener("change", update);
+  return {
+    root,
+    destroy() {
+      root.remove();
+    }
+  };
+}
+
 // src/frontend.ts
 var ICON_GLASS2 = `<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 32 32"><g fill="currentColor"><path d="M16 27.15c3.733 0 6.76-4.867 6.76-10.87S19.733 5.41 16 5.41s-6.76 4.867-6.76 10.87S12.267 27.15 16 27.15m5.76-10.87c0 2.845-.72 5.373-1.83 7.158c-1.118 1.8-2.535 2.712-3.93 2.712s-2.812-.912-3.93-2.712a11 11 0 0 1-1.024-2.172l9.85-10.134c.543 1.49.864 3.249.864 5.148"/><path d="M16 1a5.67 5.67 0 0 0-4.719 2.525l-1.024 1.536a3 3 0 0 1-1.154 1.02l-1.583.79a5 5 0 0 0-2.303 6.568l.601 1.304a3 3 0 0 1 0 2.514l-.601 1.304a5 5 0 0 0 2.303 6.567l1.583.791a3 3 0 0 1 1.154 1.02l1.024 1.536a5.67 5.67 0 0 0 9.438 0l1.024-1.536a3 3 0 0 1 1.154-1.02l1.583-.79a5 5 0 0 0 2.303-6.568l-.602-1.304a3 3 0 0 1 0-2.514l.602-1.304a5 5 0 0 0-2.303-6.567l-1.583-.791a3 3 0 0 1-1.154-1.02l-1.024-1.536A5.67 5.67 0 0 0 15.999 1m-3.055 3.635a3.67 3.67 0 0 1 6.11 0l1.024 1.536a5 5 0 0 0 1.924 1.698l1.582.792a3 3 0 0 1 1.382 3.94l-.601 1.304a5 5 0 0 0 0 4.19l.601 1.304a3 3 0 0 1-1.382 3.94l-1.582.792a5 5 0 0 0-1.924 1.698l-1.024 1.536a3.67 3.67 0 0 1-6.11 0l-1.024-1.536a5 5 0 0 0-1.924-1.698l-1.582-.792a3 3 0 0 1-1.382-3.94l.601-1.304a5 5 0 0 0 0-4.19l-.6-1.305a3 3 0 0 1 1.382-3.94l1.582-.792a5 5 0 0 0 1.924-1.698z"/></g></svg>`;
 function setup(ctx) {
   const cleanups = [];
-  ctx.settings.register({
-    id: "renderMode",
-    type: "select",
-    label: "Style Rendering Mode",
-    description: "Global allows styles to affect the entire app. Window Only isolates them to the Looking Glass window.",
-    options: [
-      { label: "Window Only (Isolated)", value: "window" },
-      { label: "Global (Full App)", value: "global" }
-    ],
-    default: "window"
-  });
-  ctx.settings.register({
-    id: "alwaysInject",
-    type: "boolean",
-    label: "Always Apply Global Styles",
-    description: "Apply global styles even when the Looking Glass window is closed.",
-    default: false
-  });
   const removeStyle = ctx.dom.addStyle(NOTES_CSS);
   cleanups.push(removeStyle);
   const windowUI = createNotesWindow();
   cleanups.push(() => windowUI.destroy());
-  const syncSettings = () => {
-    windowUI.updateSettings({
-      renderMode: ctx.settings.get("renderMode"),
-      alwaysInject: ctx.settings.get("alwaysInject")
-    });
-  };
-  syncSettings();
-  ctx.settings.onChanged("renderMode", syncSettings);
-  ctx.settings.onChanged("alwaysInject", syncSettings);
+  const settingsMount = ctx.ui.mount("settings_extensions");
+  const settingsUI = createSettingsUI((settings) => {
+    windowUI.updateSettings(settings);
+  });
+  settingsMount.appendChild(settingsUI.root);
+  cleanups.push(() => settingsUI.destroy());
+  const STORAGE_KEY = "looking-glass-settings";
+  const initialSettings = JSON.parse(localStorage.getItem(STORAGE_KEY) || JSON.stringify({
+    renderMode: "window",
+    alwaysInject: false
+  }));
+  windowUI.updateSettings(initialSettings);
   const widget = ctx.ui.createFloatWidget({
     width: 48,
     height: 48,
@@ -1867,7 +1916,7 @@ function setup(ctx) {
   function requestNotes() {
     ctx.sendToBackend({ type: "get_notes" });
   }
-  if (ctx.settings.get("renderMode") === "global" && ctx.settings.get("alwaysInject")) {
+  if (initialSettings.renderMode === "global" && initialSettings.alwaysInject) {
     requestNotes();
   }
   widgetContent.addEventListener("click", (e) => {
@@ -1883,7 +1932,8 @@ function setup(ctx) {
         windowUI.updateCharacterId(msg.characterId);
       windowUI.updateContent(msg.notes);
     } else if (msg.type === "chat_switched") {
-      if (!windowUI.root.classList.contains("hidden") || ctx.settings.get("renderMode") === "global" && ctx.settings.get("alwaysInject")) {
+      const current = JSON.parse(localStorage.getItem(STORAGE_KEY) || "{}");
+      if (!windowUI.root.classList.contains("hidden") || current.renderMode === "global" && current.alwaysInject) {
         requestNotes();
       }
     }
