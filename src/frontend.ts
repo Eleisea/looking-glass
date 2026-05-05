@@ -70,7 +70,8 @@ export function setup(ctx: SpindleFrontendContext) {
   widgetContent.addEventListener("click", (e) => {
     e.stopPropagation();
     windowUI.toggle();
-    if (!windowUI.root.classList.contains("hidden")) {
+    // Check if it's now visible
+    if (windowUI.root.style.display !== "none") {
       requestNotes();
     }
   });

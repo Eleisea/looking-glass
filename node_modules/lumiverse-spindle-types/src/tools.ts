@@ -13,6 +13,8 @@ export interface ToolRegistration {
   parameters: JSONSchema;
   /** Whether council members can invoke this tool (future) */
   council_eligible?: boolean;
+  /** Whether the tool is available for inline function calling during generation */
+  inline_available?: boolean;
   /** Auto-set by host — the owning extension identifier */
   extension_id: string;
 }

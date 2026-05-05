@@ -17,13 +17,11 @@ export interface NotesWindow {
 }
 
 export function createNotesWindow(): NotesWindow {
-  // --- Persistent Position Settings ---
   const STORAGE_KEY_PREFS = "looking-glass-window-prefs";
   const savedPrefs = JSON.parse(localStorage.getItem(STORAGE_KEY_PREFS) || "{}");
   
   let currentSettings = { renderMode: "window", alwaysInject: false };
 
-  // --- Style Manager for Main Document ---
   const globalStyleId = "lg-global-styles";
   const updateGlobalStyles = (css: string) => {
     let styleEl = document.getElementById(globalStyleId) as HTMLStyleElement;
@@ -40,10 +38,11 @@ export function createNotesWindow(): NotesWindow {
   host.style.position = "fixed";
   host.style.top = "0";
   host.style.left = "0";
-  host.style.width = "0";
-  host.style.height = "0";
+  host.style.width = "100%";
+  host.style.height = "100%";
   host.style.zIndex = "10000";
   host.style.pointerEvents = "none";
+  host.style.display = "none"; // Start hidden
 
   const shadow = host.attachShadow({ mode: "open" });
 
@@ -57,7 +56,7 @@ export function createNotesWindow(): NotesWindow {
   body.style.display = "contents";
 
   const root = document.createElement("div");
-  root.className = "lg-window hidden";
+  root.className = "lg-window"; // No "hidden" class here anymore, we control via host.display
   root.style.width = "400px";
   root.style.height = "500px";
   root.style.top = "100px";
@@ -98,9 +97,7 @@ export function createNotesWindow(): NotesWindow {
   shadow.appendChild(body);
   document.body.appendChild(host);
 
-  // --- Logic ---
   let currentRawContent = "";
-
   let isDragging = false;
   let isResizing = false;
   let startX = 0, startY = 0, startW = 0, startH = 0, startTop = 0, startLeft = 0;
@@ -150,19 +147,19 @@ export function createNotesWindow(): NotesWindow {
   closeBtn.onclick = () => hide();
 
   function show() {
-    root.classList.remove("hidden");
+    host.style.display = "block";
     updateContent(currentRawContent);
   }
 
   function hide() {
-    root.classList.add("hidden");
+    host.style.display = "none";
     if (currentSettings.renderMode === "global" && !currentSettings.alwaysInject) {
       updateGlobalStyles("");
     }
   }
 
   function toggle() {
-    if (root.classList.contains("hidden")) show();
+    if (host.style.display === "none") show();
     else hide();
   }
 
@@ -170,21 +167,22 @@ export function createNotesWindow(): NotesWindow {
     currentRawContent = raw;
     Promise.resolve(marked.parse(raw)).then((parsed) => {
       // 1. Render content into the window (Shadow DOM)
-      // We keep styles inside the window in both modes so the window itself is ALWAYS styled.
       content.innerHTML = parsed as string;
 
-      // 2. Handle Global (Main App) Styles
+      // 2. Handle Global Styles
       if (currentSettings.renderMode === "global") {
         const temp = document.createElement("div");
         temp.innerHTML = parsed as string;
         const cssContent = Array.from(temp.querySelectorAll("style")).map(s => s.textContent).join("\n");
         
-        if (!root.classList.contains("hidden") || currentSettings.alwaysInject) {
+        // If window is open OR alwaysInject is true, apply globally
+        if (host.style.display !== "none" || currentSettings.alwaysInject) {
           updateGlobalStyles(cssContent);
         } else {
           updateGlobalStyles("");
         }
       } else {
+        // Window Only Mode: Ensure global styles are cleared
         updateGlobalStyles("");
       }
     });

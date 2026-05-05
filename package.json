@@ -10,7 +10,7 @@
     "typecheck": "tsc --noEmit"
   },
   "devDependencies": {
-    "lumiverse-spindle-types": "0.4.19",
+    "lumiverse-spindle-types": "0.4.62",
     "typescript": "^5.7.3"
   },
   "dependencies": {

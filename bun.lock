@@ -9,7 +9,7 @@
         "marked": "^18.0.3",
       },
       "devDependencies": {
-        "lumiverse-spindle-types": "0.4.19",
+        "lumiverse-spindle-types": "0.4.62",
         "typescript": "^5.7.3",
       },
     },
@@ -17,7 +17,7 @@
   "packages": {
     "@types/marked": ["@types/marked@6.0.0", "", { "dependencies": { "marked": "*" } }, "sha512-jmjpa4BwUsmhxcfsgUit/7A9KbrC48Q0q8KvnY107ogcjGgTFDlIL3RpihNpx2Mu1hM4mdFQjoVc4O6JoGKHsA=="],
 
-    "lumiverse-spindle-types": ["lumiverse-spindle-types@0.4.19", "", {}, "sha512-t0T/nSLEf8RTwRJS8GK/90ibz3RHuQJZ5xM3vY17LDFs02o/YcIRuqMphTuU3lFMsmxuQ4Eji9Vc3ld9eXz16g=="],
+    "lumiverse-spindle-types": ["lumiverse-spindle-types@0.4.62", "", {}, "sha512-GwAsxfQ3w2NOZFGAaVzU0TyMmmXIMnS/mliEn5QYKKwuVie4VfUjkIZldb60pS7ybdXN9JZkBPIkIz6VEFdo7w=="],
 
     "marked": ["marked@18.0.3", "", { "bin": { "marked": "bin/marked.js" } }, "sha512-7VT90JOkDeaRWpfjOReRGPEKn0ecdARBkDGL+tT1wZY0efPPqkUxLUSmzy/C7TIylQYJC9STISEsCHrqb/7VIA=="],
 

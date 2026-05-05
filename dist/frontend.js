@@ -40,8 +40,8 @@ var NOTES_CSS = `
   display: flex;
   flex-direction: column;
   background: var(--lg-window-bg, var(--lcs-glass-bg, var(--lumiverse-bg-elevated)));
-  backdrop-filter: var(--lg-window-backdrop, blur(var(--lg-window-blur, var(--lcs-glass-blur, 12px))));
-  -webkit-backdrop-filter: var(--lg-window-backdrop, blur(var(--lg-window-blur, var(--lcs-glass-blur, 12px))));
+  /*backdrop-filter: var(--lg-window-backdrop, blur(var(--lg-window-blur, var(--lcs-glass-blur, 12px))));*/
+  /*-webkit-backdrop-filter: var(--lg-window-backdrop, blur(var(--lg-window-blur, var(--lcs-glass-blur, 12px))));*/
   border: var(--lg-window-border, 1px solid var(--lcs-glass-border, var(--lumiverse-border)));
   border-radius: 16px;
   box-shadow: var(--lg-window-shadow, 0 20px 50px rgba(0, 0, 0, 0.4), var(--lumiverse-highlight-inset));
@@ -1652,10 +1652,11 @@ function createNotesWindow() {
   host.style.position = "fixed";
   host.style.top = "0";
   host.style.left = "0";
-  host.style.width = "0";
-  host.style.height = "0";
+  host.style.width = "100%";
+  host.style.height = "100%";
   host.style.zIndex = "10000";
   host.style.pointerEvents = "none";
+  host.style.display = "none";
   const shadow = host.attachShadow({ mode: "open" });
   const baseStyle = document.createElement("style");
   baseStyle.textContent = NOTES_CSS;
@@ -1665,7 +1666,7 @@ function createNotesWindow() {
   body.style.padding = "0";
   body.style.display = "contents";
   const root = document.createElement("div");
-  root.className = "lg-window hidden";
+  root.className = "lg-window";
   root.style.width = "400px";
   root.style.height = "500px";
   root.style.top = "100px";
@@ -1754,17 +1755,17 @@ function createNotesWindow() {
   const closeBtn = header.querySelector(".lg-window-close");
   closeBtn.onclick = () => hide();
   function show() {
-    root.classList.remove("hidden");
+    host.style.display = "block";
     updateContent(currentRawContent);
   }
   function hide() {
-    root.classList.add("hidden");
+    host.style.display = "none";
     if (currentSettings.renderMode === "global" && !currentSettings.alwaysInject) {
       updateGlobalStyles("");
     }
   }
   function toggle() {
-    if (root.classList.contains("hidden"))
+    if (host.style.display === "none")
       show();
     else
       hide();
@@ -1778,7 +1779,7 @@ function createNotesWindow() {
         temp.innerHTML = parsed;
         const cssContent = Array.from(temp.querySelectorAll("style")).map((s) => s.textContent).join(`
 `);
-        if (!root.classList.contains("hidden") || currentSettings.alwaysInject) {
+        if (host.style.display !== "none" || currentSettings.alwaysInject) {
           updateGlobalStyles(cssContent);
         } else {
           updateGlobalStyles("");
@@ -1922,7 +1923,7 @@ function setup(ctx) {
   widgetContent.addEventListener("click", (e) => {
     e.stopPropagation();
     windowUI.toggle();
-    if (!windowUI.root.classList.contains("hidden")) {
+    if (windowUI.root.style.display !== "none") {
       requestNotes();
     }
   });
