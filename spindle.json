@@ -9,7 +9,8 @@
   "permissions": [
     "ui_panels",
     "chats",
-    "characters"
+    "characters",
+    "cors_proxy"
   ],
   "entry_backend": "dist/backend.js",
   "entry_frontend": "dist/frontend.js",

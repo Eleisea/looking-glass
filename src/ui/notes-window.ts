@@ -176,6 +176,44 @@ export function createNotesWindow(ctx: SpindleFrontendContext): NotesWindow {
       </head>
       <body>
         ${finalHtml}
+        
+        <script>
+          (async function() {
+            if (!window.spindleSandbox || !window.spindleSandbox.corsProxy) return;
+            
+            // Proxy <img> tags
+            const imgs = document.querySelectorAll('img');
+            for (const img of imgs) {
+              const src = img.getAttribute('src');
+              if (src && src.startsWith('http')) {
+                try {
+                  const bytes = await window.spindleSandbox.corsProxy(src);
+                  const blob = new Blob([bytes]);
+                  img.src = URL.createObjectURL(blob);
+                } catch (e) {
+                  console.error("Failed to proxy image:", src, e);
+                }
+              }
+            }
+
+            // Proxy inline background images
+            const elements = document.querySelectorAll('*');
+            for (const el of elements) {
+              if (el.style.backgroundImage) {
+                const match = el.style.backgroundImage.match(/url\\(['"]?(http.*?)['"]?\\)/);
+                if (match && match[1]) {
+                  try {
+                    const bytes = await window.spindleSandbox.corsProxy(match[1]);
+                    const blob = new Blob([bytes]);
+                    el.style.backgroundImage = \`url('\${URL.createObjectURL(blob)}')\`;
+                  } catch (e) {
+                    console.error("Failed to proxy background image:", match[1], e);
+                  }
+                }
+              }
+            }
+          })();
+        </script>
       </body>
       </html>
     `;
