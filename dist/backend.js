@@ -4,6 +4,7 @@ function setup(spindle) {
   spindle.log.info("Looking Glass backend starting...");
   spindle.onFrontendMessage(async (msg, userId) => {
     spindle.log.info(`Received message from frontend: ${msg.type} (user: ${userId})`);
+    spindle.sendToFrontend({ type: "connection_test", status: "ok" }, userId);
     if (msg.type === "get_notes") {
       try {
         const activeChat = await spindle.chats.getActive();

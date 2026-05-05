@@ -5,6 +5,9 @@ export function setup(spindle: SpindleBackendContext) {
 
   spindle.onFrontendMessage(async (msg: any, userId: string) => {
     spindle.log.info(`Received message from frontend: ${msg.type} (user: ${userId})`);
+    
+    // Immediate connectivity test
+    spindle.sendToFrontend({ type: "connection_test", status: "ok" }, userId);
 
     if (msg.type === "get_notes") {
       try {
