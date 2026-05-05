@@ -10,14 +10,16 @@ spindle.onFrontendMessage(async (msg: any, userId: string) => {
 
   if (msg.type === "get_notes") {
     try {
-      const activeChat = await spindle.chats.getActive();
+      // Some host versions require userId for getActive in operator-scoped contexts
+      const activeChat = await (spindle.chats as any).getActive(userId);
+      
       if (!activeChat) {
-        spindle.log.warn("No active chat found when requesting notes.");
-        spindle.sendToFrontend({ type: "notes_result", notes: "No active chat found." }, userId);
+        spindle.log.warn(`No active chat found for user ${userId} when requesting notes.`);
+        spindle.sendToFrontend({ type: "notes_result", notes: "No active chat found. Please open a chat first." }, userId);
         return;
       }
 
-      spindle.log.info(`Resolving notes for chat ${activeChat.id} (char: ${activeChat.character_id})`);
+      spindle.log.info(`Resolving notes for chat ${activeChat.id} (char: ${activeChat.character_id}) for user ${userId}`);
 
       const { text } = await spindle.macros.resolve("{{charCreatorNotes}}", {
         chatId: activeChat.id,
@@ -29,8 +31,9 @@ spindle.onFrontendMessage(async (msg: any, userId: string) => {
       spindle.log.info(`Successfully resolved notes (${text?.length || 0} chars)`);
       spindle.sendToFrontend({ type: "notes_result", notes: text || "No creator notes found for this character." }, userId);
     } catch (err: any) {
-      spindle.log.error("Failed to resolve creator notes:", err);
-      spindle.sendToFrontend({ type: "notes_result", notes: `Error: Failed to load notes. ${err?.message}` }, userId);
+      const errorMsg = err?.message || String(err);
+      spindle.log.error(`Failed to resolve creator notes: ${errorMsg}`);
+      spindle.sendToFrontend({ type: "notes_result", notes: `Error: Failed to load notes. ${errorMsg}` }, userId);
     }
   }
 });
