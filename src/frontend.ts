@@ -7,15 +7,48 @@ const ICON_GLASS = `<svg xmlns="http://www.w3.org/2000/svg" width="32" height="3
 export function setup(ctx: SpindleFrontendContext) {
   const cleanups: (() => void)[] = [];
 
-  // 1. Add styles
+  // 1. Register Settings in Lumiverse UI
+  ctx.settings.register({
+    id: "renderMode",
+    type: "select",
+    label: "Style Rendering Mode",
+    description: "Global allows styles to affect the entire app. Window Only isolates them to the Looking Glass window.",
+    options: [
+      { label: "Window Only (Isolated)", value: "window" },
+      { label: "Global (Full App)", value: "global" }
+    ],
+    default: "window",
+  });
+
+  ctx.settings.register({
+    id: "alwaysInject",
+    type: "boolean",
+    label: "Always Apply Global Styles",
+    description: "Apply global styles even when the Looking Glass window is closed.",
+    default: false,
+  });
+
+  // 2. Add styles
   const removeStyle = ctx.dom.addStyle(NOTES_CSS);
   cleanups.push(removeStyle);
 
-  // 2. Create the notes window
+  // 3. Create the notes window
   const windowUI = createNotesWindow();
   cleanups.push(() => windowUI.destroy());
 
-  // 3. Create the float widget
+  // Sync settings
+  const syncSettings = () => {
+    windowUI.updateSettings({
+      renderMode: ctx.settings.get("renderMode") as string,
+      alwaysInject: ctx.settings.get("alwaysInject") as boolean,
+    });
+  };
+  syncSettings();
+  
+  ctx.settings.onChanged("renderMode", syncSettings);
+  ctx.settings.onChanged("alwaysInject", syncSettings);
+
+  // 4. Create the float widget
   const widget = ctx.ui.createFloatWidget({
     width: 48,
     height: 48,
@@ -40,10 +73,14 @@ export function setup(ctx: SpindleFrontendContext) {
     localStorage.setItem(POS_KEY, JSON.stringify(pos));
   });
 
-  // 4. Handle interactions
+  // 5. Handle interactions
   function requestNotes() {
-    console.log("[Looking Glass] Requesting notes from backend...");
     ctx.sendToBackend({ type: "get_notes" });
+  }
+
+  // Pre-fetch if alwaysInject is true
+  if (ctx.settings.get("renderMode") === "global" && ctx.settings.get("alwaysInject")) {
+    requestNotes();
   }
 
   widgetContent.addEventListener("click", (e) => {
@@ -54,22 +91,20 @@ export function setup(ctx: SpindleFrontendContext) {
     }
   });
 
-  // 5. Backend message handling
+  // 6. Backend message handling
   const msgUnsub = ctx.onBackendMessage((msg: any) => {
-    console.log("[Looking Glass] Received message from backend:", msg.type, msg);
     if (msg.type === "notes_result") {
       if (msg.characterId) windowUI.updateCharacterId(msg.characterId);
       windowUI.updateContent(msg.notes);
     } else if (msg.type === "chat_switched") {
-      // Refresh notes if window is open
-      if (!windowUI.root.classList.contains("hidden")) {
+      // Refresh notes if window is open OR alwaysInject is true
+      if (!windowUI.root.classList.contains("hidden") || (ctx.settings.get("renderMode") === "global" && ctx.settings.get("alwaysInject"))) {
         requestNotes();
       }
     }
   });
   cleanups.push(msgUnsub);
 
-  // Return cleanup
   return () => {
     cleanups.forEach(c => c());
   };
