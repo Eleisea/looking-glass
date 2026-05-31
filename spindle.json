@@ -1,18 +1,17 @@
 {
-  "version": "1.1.0",
-  "name": "LookingGlass",
   "identifier": "looking_glass",
+  "version": "1.1.0",
+  "name": "Looking Glass",
   "author": "Eleisea",
   "github": "https://github.com/Eleisea/looking-glass",
   "homepage": "https://github.com/Eleisea/looking-glass",
-  "description": "Renders the Creator's Notes of a character card in a Drawer Tab and an optional Float Widget.",
+  "description": "View character creator notes in a floating, resizable window.",
   "permissions": [
+    "ui_panels",
     "chats",
-    "characters",
-    "app_manipulation",
-    "ui_panels"
+    "characters"
   ],
   "entry_backend": "dist/backend.js",
   "entry_frontend": "dist/frontend.js",
-  "minimum_lumiverse_version": "0.1.0"
+  "minimum_lumiverse_version": "0.8.6"
 }
