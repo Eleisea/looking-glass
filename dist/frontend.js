@@ -249,12 +249,15 @@ var NOTES_CSS = `
   position: absolute;
   bottom: 0;
   right: 0;
-  width: 16px;
-  height: 16px;
+  width: 18px;
+  height: 18px;
   cursor: nwse-resize;
   background: linear-gradient(135deg, transparent 50%, var(--lumiverse-border) 50%);
   opacity: 0.5;
   transition: opacity 0.2s ease;
+  touch-action: none;
+  user-select: none;
+  z-index: 10;
 }
 
 .lg-window-resize-handle:hover {
@@ -4530,6 +4533,7 @@ function createNotesWindow(ctx) {
   viewport.appendChild(content);
   const resizeHandle = document.createElement("div");
   resizeHandle.className = "lg-window-resize-handle";
+  resizeHandle.setAttribute("data-spindle-float-resize-handle", floatWidget?.widgetId || "true");
   root.appendChild(header);
   root.appendChild(viewport);
   root.appendChild(resizeHandle);
@@ -4540,16 +4544,15 @@ function createNotesWindow(ctx) {
   function savePrefs() {
     if (poppedOut)
       return;
-    let w = root.style.width;
-    let h = root.style.height;
+    const rect = root.getBoundingClientRect();
+    const w = `${Math.round(rect.width)}px`;
+    const h = `${Math.round(rect.height)}px`;
     let t = root.style.top;
     let l = root.style.left;
     if (floatWidget) {
       const pos = floatWidget.getPosition?.() || { x: defaultX, y: defaultY };
       t = `${pos.y}px`;
       l = `${pos.x}px`;
-      w = `${startW}px`;
-      h = `${startH}px`;
     }
     const prefs = { width: w, height: h, top: t, left: l };
     localStorage.setItem(STORAGE_KEY_PREFS, JSON.stringify(prefs));
@@ -4559,10 +4562,10 @@ function createNotesWindow(ctx) {
       const current = JSON.parse(localStorage.getItem(STORAGE_KEY_PREFS) || "{}");
       localStorage.setItem(STORAGE_KEY_PREFS, JSON.stringify({ ...current, left: `${pos.x}px`, top: `${pos.y}px` }));
     });
+    let dragRafId = null;
+    let pendingLeft = defaultX;
+    let pendingTop = defaultY;
     header.addEventListener("pointerdown", (e) => {
-      e.stopPropagation();
-    });
-    header.addEventListener("mousedown", (e) => {
       if (e.target.closest("button"))
         return;
       isDragging = true;
@@ -4577,51 +4580,117 @@ function createNotesWindow(ctx) {
         startTop = rect.top;
         startLeft = rect.left;
       }
+      pendingLeft = startLeft;
+      pendingTop = startTop;
       header.style.cursor = "grabbing";
+      header.setPointerCapture(e.pointerId);
       e.preventDefault();
       e.stopPropagation();
     });
-    resizeHandle.addEventListener("mousedown", (e) => {
+    header.addEventListener("pointermove", (e) => {
+      if (!isDragging)
+        return;
+      e.preventDefault();
+      e.stopPropagation();
+      const dx = e.clientX - startX;
+      const dy = e.clientY - startY;
+      pendingLeft = Math.round(startLeft + dx);
+      pendingTop = Math.round(startTop + dy);
+      if (dragRafId === null) {
+        dragRafId = requestAnimationFrame(() => {
+          dragRafId = null;
+          if (floatWidget) {
+            floatWidget.moveTo(pendingLeft, pendingTop);
+          } else {
+            root.style.top = `${pendingLeft}px`;
+            root.style.left = `${pendingLeft}px`;
+            root.style.right = "auto";
+          }
+        });
+      }
+    });
+    const finishDrag = (e) => {
+      if (!isDragging)
+        return;
+      isDragging = false;
+      header.style.cursor = "";
+      if (header.hasPointerCapture(e.pointerId)) {
+        header.releasePointerCapture(e.pointerId);
+      }
+      if (dragRafId !== null) {
+        cancelAnimationFrame(dragRafId);
+        dragRafId = null;
+      }
+      if (floatWidget) {
+        floatWidget.moveTo(pendingLeft, pendingTop);
+      } else {
+        root.style.top = `${pendingLeft}px`;
+        root.style.left = `${pendingLeft}px`;
+      }
+      savePrefs();
+    };
+    header.addEventListener("pointerup", finishDrag);
+    header.addEventListener("pointercancel", finishDrag);
+    let resizeRafId = null;
+    let pendingW = defaultW;
+    let pendingH = defaultH;
+    resizeHandle.addEventListener("pointerdown", (e) => {
+      if (e.button !== 0)
+        return;
       isResizing = true;
       startX = e.clientX;
       startY = e.clientY;
-      startW = floatWidget ? floatWidget.getPosition?.() ? root.offsetWidth : defaultW : root.offsetWidth;
-      startH = floatWidget ? floatWidget.getPosition?.() ? root.offsetHeight : defaultH : root.offsetHeight;
+      const rect = root.getBoundingClientRect();
+      startW = rect.width;
+      startH = rect.height;
+      pendingW = Math.round(startW);
+      pendingH = Math.round(startH);
+      resizeHandle.setPointerCapture(e.pointerId);
       e.preventDefault();
       e.stopPropagation();
     });
-    const onMouseMove = (e) => {
-      if (isDragging) {
-        const newTop = startTop + (e.clientY - startY);
-        const newLeft = startLeft + (e.clientX - startX);
-        if (floatWidget) {
-          floatWidget.moveTo(newLeft, newTop);
-        } else {
-          root.style.top = `${newTop}px`;
-          root.style.left = `${newLeft}px`;
-          root.style.right = "auto";
-        }
-      } else if (isResizing) {
-        const newW = Math.max(280, startW + (e.clientX - startX));
-        const newH = Math.max(200, startH + (e.clientY - startY));
-        if (floatWidget) {
-          floatWidget.setSize(newW, newH);
-        } else {
-          root.style.width = `${newW}px`;
-          root.style.height = `${newH}px`;
-        }
+    resizeHandle.addEventListener("pointermove", (e) => {
+      if (!isResizing)
+        return;
+      e.preventDefault();
+      e.stopPropagation();
+      const dx = e.clientX - startX;
+      const dy = e.clientY - startY;
+      pendingW = Math.max(280, Math.round(startW + dx));
+      pendingH = Math.max(200, Math.round(startH + dy));
+      if (resizeRafId === null) {
+        resizeRafId = requestAnimationFrame(() => {
+          resizeRafId = null;
+          if (floatWidget) {
+            floatWidget.setSize(pendingW, pendingH);
+          } else {
+            root.style.width = `${pendingW}px`;
+            root.style.height = `${pendingH}px`;
+          }
+        });
       }
-    };
-    const onMouseUp = () => {
-      if (isDragging || isResizing) {
-        isDragging = false;
-        isResizing = false;
-        header.style.cursor = "";
-        savePrefs();
+    });
+    const finishResize = (e) => {
+      if (!isResizing)
+        return;
+      isResizing = false;
+      if (resizeHandle.hasPointerCapture(e.pointerId)) {
+        resizeHandle.releasePointerCapture(e.pointerId);
       }
+      if (resizeRafId !== null) {
+        cancelAnimationFrame(resizeRafId);
+        resizeRafId = null;
+      }
+      if (floatWidget) {
+        floatWidget.setSize(pendingW, pendingH);
+      } else {
+        root.style.width = `${pendingW}px`;
+        root.style.height = `${pendingH}px`;
+      }
+      savePrefs();
     };
-    window.addEventListener("mousemove", onMouseMove);
-    window.addEventListener("mouseup", onMouseUp);
+    resizeHandle.addEventListener("pointerup", finishResize);
+    resizeHandle.addEventListener("pointercancel", finishResize);
   }
   const closeBtn = header.querySelector(".lg-window-close");
   closeBtn.onclick = () => {

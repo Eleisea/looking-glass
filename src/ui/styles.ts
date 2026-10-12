@@ -248,12 +248,15 @@ export const NOTES_CSS = `
   position: absolute;
   bottom: 0;
   right: 0;
-  width: 16px;
-  height: 16px;
+  width: 18px;
+  height: 18px;
   cursor: nwse-resize;
   background: linear-gradient(135deg, transparent 50%, var(--lumiverse-border) 50%);
   opacity: 0.5;
   transition: opacity 0.2s ease;
+  touch-action: none;
+  user-select: none;
+  z-index: 10;
 }
 
 .lg-window-resize-handle:hover {
