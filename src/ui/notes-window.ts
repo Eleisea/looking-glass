@@ -1,6 +1,6 @@
-import type { SpindleFrontendContext } from "lumiverse-spindle-types";
+import type { SpindleFrontendContext, SpindleFloatWidgetHandle } from "lumiverse-spindle-types";
 import { NOTES_CSS } from "./styles";
-import { ICON_CLOSE, ICON_EMPTY, ICON_GLASS } from "./icons";
+import { ICON_CLOSE, ICON_EMPTY, ICON_GLASS, ICON_POPOUT, ICON_RETURN } from "./icons";
 import { loadSettings, type LgSettings } from "./settings";
 import { renderNotes, scopePageSelectors, type RenderedNotes } from "../render/pipeline";
 
@@ -35,6 +35,26 @@ function escapeHtml(text: string): string {
   return text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 }
 
+function getTauriInvoke(): ((cmd: string, args?: Record<string, unknown>) => Promise<unknown>) | null {
+  if (typeof window === "undefined") return null;
+  const w = window as any;
+  if (typeof w.__TAURI__?.core?.invoke === "function") return w.__TAURI__.core.invoke;
+  if (typeof w.__TAURI_INTERNALS__?.invoke === "function") return w.__TAURI_INTERNALS__.invoke;
+  return null;
+}
+
+function isDesktopWindow(): boolean {
+  if (typeof window === "undefined") return false;
+  const w = window as any;
+  return typeof w.__TAURI__ !== "undefined" || typeof w.__TAURI_INTERNALS__ !== "undefined";
+}
+
+function isPoppedOut(): boolean {
+  if (typeof window === "undefined") return false;
+  const params = new URLSearchParams(window.location.search);
+  return params.get("desktopWidgetExtension") === "looking_glass";
+}
+
 /**
  * Page-level mount. Uses the Spindle app-mount API (needs the
  * `app_manipulation` permission) and only falls back to a plain body child if
@@ -67,27 +87,14 @@ function createStyleSlot(ctx: SpindleFrontendContext) {
   return { set, clear: () => set("") };
 }
 
-/**
- * Top-level elements the notes position with `position: fixed` (blood rain,
- * fog, vignettes...). These are the "ambient" layer of a card.
- */
-function findFixedRoots(container: HTMLElement): HTMLElement[] {
-  const roots: HTMLElement[] = [];
-  for (const el of Array.from(container.querySelectorAll<HTMLElement>("*"))) {
-    if (getComputedStyle(el).position !== "fixed") continue;
-    if (roots.some((root) => root.contains(el))) continue;
-    roots.push(el);
-  }
-  return roots;
-}
-
 export function createNotesWindow(ctx: SpindleFrontendContext): NotesWindow {
   const STORAGE_KEY_PREFS = "looking-glass-window-prefs";
   const savedPrefs = JSON.parse(localStorage.getItem(STORAGE_KEY_PREFS) || "{}");
+  const poppedOut = isPoppedOut();
 
   let settings: LgSettings = loadSettings();
   let notes: NotesPayload = { status: "loading", text: "" };
-  let open = false;
+  let open = poppedOut;
 
   let rendered: RenderedNotes | null = null;
   let renderedFor = "";
@@ -98,19 +105,46 @@ export function createNotesWindow(ctx: SpindleFrontendContext): NotesWindow {
   const hoistedStyle = createStyleSlot(ctx);
   const globalStyle = createStyleSlot(ctx);
 
-  // ── Widget window (Shadow DOM) ────────────────────────────────────────────
-  const overlay = mountOverlay(ctx, "lg-window-host");
-  const host = overlay.root;
-  Object.assign(host.style, {
-    position: "fixed",
-    top: "0",
-    left: "0",
-    width: "100%",
-    height: "100%",
-    zIndex: "10000",
-    pointerEvents: "none",
-    display: "none", // start hidden
-  });
+  // ── Floating Widget / Window surface ──────────────────────────────────────
+  const defaultW = savedPrefs.width ? parseInt(savedPrefs.width, 10) : 400;
+  const defaultH = savedPrefs.height ? parseInt(savedPrefs.height, 10) : 500;
+  const defaultX = savedPrefs.left ? parseInt(savedPrefs.left, 10) : Math.max(16, window.innerWidth - 450);
+  const defaultY = savedPrefs.top ? parseInt(savedPrefs.top, 10) : 100;
+
+  let floatWidget: SpindleFloatWidgetHandle | null = null;
+  let overlay: Overlay | null = null;
+  let host: HTMLElement;
+
+  try {
+    floatWidget = ctx.ui.createFloatWidget({
+      width: defaultW,
+      height: defaultH,
+      initialPosition: { x: defaultX, y: defaultY },
+      chromeless: true,
+      tooltip: "Looking Glass - Notes",
+    });
+    host = floatWidget.root;
+    host.style.width = "100%";
+    host.style.height = "100%";
+    host.style.pointerEvents = "auto";
+    if (!poppedOut) {
+      floatWidget.setVisible(false);
+    }
+  } catch (err) {
+    console.warn("[Looking Glass] createFloatWidget unavailable; falling back to app mount", err);
+    overlay = mountOverlay(ctx, "lg-window-host");
+    host = overlay.root;
+    Object.assign(host.style, {
+      position: "fixed",
+      top: "0",
+      left: "0",
+      width: "100%",
+      height: "100%",
+      zIndex: "10000",
+      pointerEvents: "none",
+      display: "none",
+    });
+  }
 
   const shadow = host.attachShadow({ mode: "open" });
 
@@ -124,26 +158,44 @@ export function createNotesWindow(ctx: SpindleFrontendContext): NotesWindow {
 
   const root = document.createElement("div");
   root.className = "lg-window";
-  root.style.width = "400px";
-  root.style.height = "500px";
-  root.style.top = "100px";
-  root.style.right = "100px";
+  if (floatWidget) {
+    root.style.position = "relative";
+    root.style.width = "100%";
+    root.style.height = "100%";
+    root.style.top = "0";
+    root.style.left = "0";
+  } else {
+    root.style.position = "fixed";
+    root.style.width = savedPrefs.width || "400px";
+    root.style.height = savedPrefs.height || "500px";
+    root.style.top = savedPrefs.top || "100px";
+    root.style.left = savedPrefs.left || "100px";
+  }
   root.style.pointerEvents = "auto";
-
-  if (savedPrefs.width) root.style.width = savedPrefs.width;
-  if (savedPrefs.height) root.style.height = savedPrefs.height;
-  if (savedPrefs.top) root.style.top = savedPrefs.top;
-  if (savedPrefs.left) root.style.left = savedPrefs.left;
-  if (savedPrefs.right && !savedPrefs.left) root.style.right = savedPrefs.right;
 
   const header = document.createElement("div");
   header.className = "lg-window-header";
   header.innerHTML = `
     <div class="lg-window-title">${ICON_GLASS} Looking Glass</div>
     <div class="lg-window-controls">
+      <button class="lg-window-popout" title="${poppedOut ? "Return to Lumiverse window" : "Pop out to desktop window"}">${poppedOut ? ICON_RETURN : ICON_POPOUT}</button>
       <button class="lg-window-close" title="Close">${ICON_CLOSE}</button>
     </div>
   `;
+
+  const popoutBtn = header.querySelector(".lg-window-popout") as HTMLElement;
+  if (!isDesktopWindow()) {
+    popoutBtn.style.display = "none";
+  } else {
+    popoutBtn.onclick = () => {
+      const invoke = getTauriInvoke();
+      if (invoke && floatWidget) {
+        void invoke(poppedOut ? "return_extension_widget" : "show_extension_widget", {
+          widgetId: floatWidget.widgetId,
+        });
+      }
+    };
+  }
 
   // The viewport is the notes' stand-in <body> and confines fixed elements.
   const viewport = document.createElement("div");
@@ -164,19 +216,40 @@ export function createNotesWindow(ctx: SpindleFrontendContext): NotesWindow {
   // ── Drag / resize ─────────────────────────────────────────────────────────
   let isDragging = false;
   let isResizing = false;
-  let startX = 0, startY = 0, startW = 0, startH = 0, startTop = 0, startLeft = 0;
+  let startX = 0, startY = 0, startW = defaultW, startH = defaultH, startTop = defaultY, startLeft = defaultX;
 
   function savePrefs() {
-    const prefs = { width: root.style.width, height: root.style.height, top: root.style.top, left: root.style.left };
+    let w = root.style.width;
+    let h = root.style.height;
+    let t = root.style.top;
+    let l = root.style.left;
+    if (floatWidget) {
+      const pos = floatWidget.getPosition?.() || { x: defaultX, y: defaultY };
+      t = `${pos.y}px`;
+      l = `${pos.x}px`;
+      w = `${startW}px`;
+      h = `${startH}px`;
+    }
+    const prefs = { width: w, height: h, top: t, left: l };
     localStorage.setItem(STORAGE_KEY_PREFS, JSON.stringify(prefs));
   }
+
+  floatWidget?.onDragEnd?.((pos) => {
+    const current = JSON.parse(localStorage.getItem(STORAGE_KEY_PREFS) || "{}");
+    localStorage.setItem(STORAGE_KEY_PREFS, JSON.stringify({ ...current, left: `${pos.x}px`, top: `${pos.y}px` }));
+  });
 
   header.addEventListener("mousedown", (e) => {
     if ((e.target as HTMLElement).closest("button")) return;
     isDragging = true;
     startX = e.clientX; startY = e.clientY;
-    const rect = root.getBoundingClientRect();
-    startTop = rect.top; startLeft = rect.left;
+    if (floatWidget) {
+      const pos = floatWidget.getPosition?.() || { x: defaultX, y: defaultY };
+      startTop = pos.y; startLeft = pos.x;
+    } else {
+      const rect = root.getBoundingClientRect();
+      startTop = rect.top; startLeft = rect.left;
+    }
     header.style.cursor = "grabbing";
     e.preventDefault();
   });
@@ -184,18 +257,31 @@ export function createNotesWindow(ctx: SpindleFrontendContext): NotesWindow {
   resizeHandle.addEventListener("mousedown", (e) => {
     isResizing = true;
     startX = e.clientX; startY = e.clientY;
-    startW = root.offsetWidth; startH = root.offsetHeight;
+    startW = floatWidget ? (floatWidget.getPosition?.() ? root.offsetWidth : defaultW) : root.offsetWidth;
+    startH = floatWidget ? (floatWidget.getPosition?.() ? root.offsetHeight : defaultH) : root.offsetHeight;
     e.preventDefault();
   });
 
   const onMouseMove = (e: MouseEvent) => {
     if (isDragging) {
-      root.style.top = `${startTop + (e.clientY - startY)}px`;
-      root.style.left = `${startLeft + (e.clientX - startX)}px`;
-      root.style.right = "auto";
+      const newTop = startTop + (e.clientY - startY);
+      const newLeft = startLeft + (e.clientX - startX);
+      if (floatWidget) {
+        floatWidget.moveTo(newLeft, newTop);
+      } else {
+        root.style.top = `${newTop}px`;
+        root.style.left = `${newLeft}px`;
+        root.style.right = "auto";
+      }
     } else if (isResizing) {
-      root.style.width = `${Math.max(280, startW + (e.clientX - startX))}px`;
-      root.style.height = `${Math.max(200, startH + (e.clientY - startY))}px`;
+      const newW = Math.max(280, startW + (e.clientX - startX));
+      const newH = Math.max(200, startH + (e.clientY - startY));
+      if (floatWidget) {
+        floatWidget.setSize(newW, newH);
+      } else {
+        root.style.width = `${newW}px`;
+        root.style.height = `${newH}px`;
+      }
     }
   };
 
@@ -211,7 +297,16 @@ export function createNotesWindow(ctx: SpindleFrontendContext): NotesWindow {
   window.addEventListener("mouseup", onMouseUp);
 
   const closeBtn = header.querySelector(".lg-window-close") as HTMLElement;
-  closeBtn.onclick = () => hide();
+  closeBtn.onclick = () => {
+    if (poppedOut) {
+      const invoke = getTauriInvoke();
+      if (invoke && floatWidget) {
+        void invoke("return_extension_widget", { widgetId: floatWidget.widgetId });
+        return;
+      }
+    }
+    hide();
+  };
 
   // ── Rendering ─────────────────────────────────────────────────────────────
   function hasNotes(): boolean {
@@ -224,14 +319,20 @@ export function createNotesWindow(ctx: SpindleFrontendContext): NotesWindow {
       rendered = renderNotes(notes.text);
     } catch (err) {
       console.error("[Looking Glass] Failed to render creator notes", err);
-      rendered = { html: `<pre>${escapeHtml(notes.text)}</pre>`, css: "", hoisted: "" };
+      rendered = {
+        html: `<pre>${escapeHtml(notes.text)}</pre>`,
+        ambientHtml: "",
+        contentHtml: `<pre>${escapeHtml(notes.text)}</pre>`,
+        css: "",
+        hoisted: "",
+      };
     }
     renderedFor = notes.text;
   }
 
   /** Global mode: the notes' ambient (position:fixed) elements live in a page-level layer. */
   function syncGlobalLayer(active: boolean): void {
-    if (!active || !rendered || !rendered.html.trim()) {
+    if (!active || !rendered || !rendered.ambientHtml.trim()) {
       layer?.destroy();
       layer = null;
       layerKey = "";
@@ -239,18 +340,17 @@ export function createNotesWindow(ctx: SpindleFrontendContext): NotesWindow {
     }
     if (layer && layerKey === renderedFor) return;
 
-    layer?.destroy();
-    layer = mountOverlay(ctx, "lg-global-layer");
+    if (!layer) {
+      layer = mountOverlay(ctx, "lg-global-layer");
+    }
     Object.assign(layer.root.style, {
       position: "fixed",
       inset: "0",
       pointerEvents: "none",
-      zIndex: "2",
+      zIndex: "9990",
+      overflow: "hidden",
     });
-    layer.root.innerHTML = rendered.html;
-    // The global stylesheet is already in the document, so computed styles are
-    // accurate: keep only what the notes pin to the viewport.
-    layer.root.replaceChildren(...findFixedRoots(layer.root));
+    layer.root.innerHTML = rendered.ambientHtml;
     layerKey = renderedFor;
   }
 
@@ -272,13 +372,11 @@ export function createNotesWindow(ctx: SpindleFrontendContext): NotesWindow {
     const hasAuthorCss = rendered.css.trim().length > 0;
     authorStyle.textContent = scopePageSelectors(rendered.css, BODY_SCOPE);
     content.className = hasAuthorCss ? "lg-window-content" : "lg-window-content lg-prose";
-    content.innerHTML = rendered.html;
-    content.scrollTop = 0;
 
-    // In global mode the ambient elements already live in the page layer.
-    if (layer) {
-      for (const el of findFixedRoots(content)) el.remove();
-    }
+    // In global mode with active ambient layer, render contentHtml so ambient overlays aren't duplicated.
+    // In widget mode, render full html so ambient overlays are confined to widget.
+    content.innerHTML = layer ? rendered.contentHtml : rendered.html;
+    content.scrollTop = 0;
   }
 
   function update(): void {
@@ -297,14 +395,22 @@ export function createNotesWindow(ctx: SpindleFrontendContext): NotesWindow {
   // ── Public API ────────────────────────────────────────────────────────────
   function show(): void {
     open = true;
-    host.style.display = "block";
+    if (floatWidget) {
+      floatWidget.setVisible(true);
+    } else {
+      host.style.display = "block";
+    }
     windowKey = "";
     update();
   }
 
   function hide(): void {
     open = false;
-    host.style.display = "none";
+    if (floatWidget) {
+      floatWidget.setVisible(false);
+    } else {
+      host.style.display = "none";
+    }
     update();
   }
 
@@ -338,7 +444,8 @@ export function createNotesWindow(ctx: SpindleFrontendContext): NotesWindow {
       layer = null;
       hoistedStyle.clear();
       globalStyle.clear();
-      overlay.destroy();
+      if (floatWidget) floatWidget.destroy();
+      overlay?.destroy();
     },
   };
 }

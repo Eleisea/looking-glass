@@ -96,6 +96,13 @@ var NOTES_CSS = `
   fill: var(--lumiverse-accent);
 }
 
+.lg-window-controls {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.lg-window-popout,
 .lg-window-close {
   width: 28px;
   height: 28px;
@@ -110,9 +117,18 @@ var NOTES_CSS = `
   transition: all 0.2s ease;
 }
 
+.lg-window-popout:hover,
 .lg-window-close:hover {
   background: rgba(255, 255, 255, 0.1);
   color: var(--lumiverse-text);
+}
+
+.lg-global-layer {
+  position: fixed !important;
+  inset: 0 !important;
+  pointer-events: none !important;
+  z-index: 9990 !important;
+  overflow: hidden !important;
 }
 
 /* The viewport doubles as the notes' <body> (see scopePageSelectors) and
@@ -325,6 +341,8 @@ var NOTES_CSS = `
 
 // src/ui/icons.ts
 var ICON_CLOSE = `<svg viewBox="0 0 24 24" width="18" height="18" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>`;
+var ICON_POPOUT = `<svg viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path><polyline points="15 3 21 3 21 9"></polyline><line x1="10" y1="14" x2="21" y2="3"></line></svg>`;
+var ICON_RETURN = `<svg viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 10 4 15 9 20"></polyline><path d="M20 4v7a4 4 0 0 1-4 4H4"></path></svg>`;
 var ICON_GLASS = `<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 32 32"><g fill="currentColor"><path d="M16 27.15c3.733 0 6.76-4.867 6.76-10.87S19.733 5.41 16 5.41s-6.76 4.867-6.76 10.87S12.267 27.15 16 27.15m5.76-10.87c0 2.845-.72 5.373-1.83 7.158c-1.118 1.8-2.535 2.712-3.93 2.712s-2.812-.912-3.93-2.712a11 11 0 0 1-1.024-2.172l9.85-10.134c.543 1.49.864 3.249.864 5.148"/><path d="M16 1a5.67 5.67 0 0 0-4.719 2.525l-1.024 1.536a3 3 0 0 1-1.154 1.02l-1.583.79a5 5 0 0 0-2.303 6.568l.601 1.304a3 3 0 0 1 0 2.514l-.601 1.304a5 5 0 0 0 2.303 6.567l1.583.791a3 3 0 0 1 1.154 1.02l1.024 1.536a5.67 5.67 0 0 0 9.438 0l1.024-1.536a3 3 0 0 1 1.154-1.02l1.583-.79a5 5 0 0 0 2.303-6.568l-.602-1.304a3 3 0 0 1 0-2.514l.602-1.304a5 5 0 0 0-2.303-6.567l-1.583-.791a3 3 0 0 1-1.154-1.02l-1.024-1.536A5.67 5.67 0 0 0 15.999 1m-3.055 3.635a3.67 3.67 0 0 1 6.11 0l1.024 1.536a5 5 0 0 0 1.924 1.698l1.582.792a3 3 0 0 1 1.382 3.94l-.601 1.304a5 5 0 0 0 0 4.19l.601 1.304a3 3 0 0 1-1.382 3.94l-1.582.792a5 5 0 0 0-1.924 1.698l-1.024 1.536a3.67 3.67 0 0 1-6.11 0l-1.024-1.536a5 5 0 0 0-1.924-1.698l-1.582-.792a3 3 0 0 1-1.382-3.94l.601-1.304a5 5 0 0 0 0-4.19l-.6-1.305a3 3 0 0 1 1.382-3.94l1.582-.792a5 5 0 0 0 1.924-1.698z"/></g></svg>`;
 var ICON_EMPTY = `<svg viewBox="0 0 24 24" fill="currentColor"><path d="M14 2H6c-1.1 0-1.99.9-1.99 2L4 20c0 1.1.89 2 1.99 2H18c1.1 0 2-.9 2-2V8l-6-6zm2 16H8v-2h8v2zm0-4H8v-2h8v2zm-3-5V3.5L18.5 9H13z"/></svg>`;
 
@@ -4258,6 +4276,56 @@ function sanitizeMarkup(html) {
   wrapper.appendChild(fragment);
   return wrapper.innerHTML;
 }
+function splitAmbientElements(html, css) {
+  if (typeof document === "undefined" || !document.body || !html.trim()) {
+    return { ambientHtml: "", contentHtml: html };
+  }
+  const temp = document.createElement("div");
+  temp.style.cssText = "position: absolute !important; left: -99999px !important; top: -99999px !important; width: 0 !important; height: 0 !important; overflow: hidden !important; visibility: hidden !important;";
+  const styleEl = document.createElement("style");
+  styleEl.textContent = css;
+  temp.appendChild(styleEl);
+  const sandbox = document.createElement("div");
+  sandbox.innerHTML = html;
+  temp.appendChild(sandbox);
+  document.body.appendChild(temp);
+  const ambientNodes = [];
+  try {
+    const all = Array.from(sandbox.querySelectorAll("*"));
+    for (const el of all) {
+      let isFixed = false;
+      try {
+        const computed = window.getComputedStyle(el);
+        if (computed.position === "fixed") {
+          isFixed = true;
+        }
+      } catch {}
+      if (!isFixed) {
+        const inline = el.getAttribute("style") || "";
+        if (/\bposition\s*:\s*fixed\b/i.test(inline)) {
+          isFixed = true;
+        }
+      }
+      if (isFixed) {
+        if (!ambientNodes.some((existing) => existing.contains(el))) {
+          ambientNodes.push(el);
+        }
+      }
+    }
+    if (ambientNodes.length === 0) {
+      return { ambientHtml: "", contentHtml: html };
+    }
+    const ambientHtml = ambientNodes.map((el) => el.outerHTML).join(`
+`);
+    for (const el of ambientNodes) {
+      el.remove();
+    }
+    const contentHtml = sandbox.innerHTML;
+    return { ambientHtml, contentHtml };
+  } finally {
+    temp.remove();
+  }
+}
 function renderNotes(source) {
   const raw = normalizeDocumentHtml(source.replace(/\r\n?/g, `
 `));
@@ -4271,13 +4339,37 @@ function renderNotes(source) {
   });
   const { hoisted, rest } = splitHoistedCss(cssBlocks.join(`
 `));
-  return { html: sanitizeMarkup(markup), css: rest, hoisted };
+  const cleanHtml = sanitizeMarkup(markup);
+  const { ambientHtml, contentHtml } = splitAmbientElements(cleanHtml, rest);
+  return { html: cleanHtml, ambientHtml, contentHtml, css: rest, hoisted };
 }
 
 // src/ui/notes-window.ts
 var BODY_SCOPE = ".lg-body";
 function escapeHtml(text) {
   return text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+}
+function getTauriInvoke() {
+  if (typeof window === "undefined")
+    return null;
+  const w = window;
+  if (typeof w.__TAURI__?.core?.invoke === "function")
+    return w.__TAURI__.core.invoke;
+  if (typeof w.__TAURI_INTERNALS__?.invoke === "function")
+    return w.__TAURI_INTERNALS__.invoke;
+  return null;
+}
+function isDesktopWindow() {
+  if (typeof window === "undefined")
+    return false;
+  const w = window;
+  return typeof w.__TAURI__ !== "undefined" || typeof w.__TAURI_INTERNALS__ !== "undefined";
+}
+function isPoppedOut() {
+  if (typeof window === "undefined")
+    return false;
+  const params = new URLSearchParams(window.location.search);
+  return params.get("desktopWidgetExtension") === "looking_glass";
 }
 function mountOverlay(ctx, className) {
   try {
@@ -4305,23 +4397,13 @@ function createStyleSlot(ctx) {
   };
   return { set, clear: () => set("") };
 }
-function findFixedRoots(container) {
-  const roots = [];
-  for (const el of Array.from(container.querySelectorAll("*"))) {
-    if (getComputedStyle(el).position !== "fixed")
-      continue;
-    if (roots.some((root) => root.contains(el)))
-      continue;
-    roots.push(el);
-  }
-  return roots;
-}
 function createNotesWindow(ctx) {
   const STORAGE_KEY_PREFS = "looking-glass-window-prefs";
   const savedPrefs = JSON.parse(localStorage.getItem(STORAGE_KEY_PREFS) || "{}");
+  const poppedOut = isPoppedOut();
   let settings = loadSettings();
   let notes = { status: "loading", text: "" };
-  let open = false;
+  let open = poppedOut;
   let rendered = null;
   let renderedFor = "";
   let windowKey = "";
@@ -4329,18 +4411,43 @@ function createNotesWindow(ctx) {
   let layer = null;
   const hoistedStyle = createStyleSlot(ctx);
   const globalStyle = createStyleSlot(ctx);
-  const overlay = mountOverlay(ctx, "lg-window-host");
-  const host = overlay.root;
-  Object.assign(host.style, {
-    position: "fixed",
-    top: "0",
-    left: "0",
-    width: "100%",
-    height: "100%",
-    zIndex: "10000",
-    pointerEvents: "none",
-    display: "none"
-  });
+  const defaultW = savedPrefs.width ? parseInt(savedPrefs.width, 10) : 400;
+  const defaultH = savedPrefs.height ? parseInt(savedPrefs.height, 10) : 500;
+  const defaultX = savedPrefs.left ? parseInt(savedPrefs.left, 10) : Math.max(16, window.innerWidth - 450);
+  const defaultY = savedPrefs.top ? parseInt(savedPrefs.top, 10) : 100;
+  let floatWidget = null;
+  let overlay = null;
+  let host;
+  try {
+    floatWidget = ctx.ui.createFloatWidget({
+      width: defaultW,
+      height: defaultH,
+      initialPosition: { x: defaultX, y: defaultY },
+      chromeless: true,
+      tooltip: "Looking Glass - Notes"
+    });
+    host = floatWidget.root;
+    host.style.width = "100%";
+    host.style.height = "100%";
+    host.style.pointerEvents = "auto";
+    if (!poppedOut) {
+      floatWidget.setVisible(false);
+    }
+  } catch (err) {
+    console.warn("[Looking Glass] createFloatWidget unavailable; falling back to app mount", err);
+    overlay = mountOverlay(ctx, "lg-window-host");
+    host = overlay.root;
+    Object.assign(host.style, {
+      position: "fixed",
+      top: "0",
+      left: "0",
+      width: "100%",
+      height: "100%",
+      zIndex: "10000",
+      pointerEvents: "none",
+      display: "none"
+    });
+  }
   const shadow = host.attachShadow({ mode: "open" });
   const baseStyle = document.createElement("style");
   baseStyle.textContent = NOTES_CSS;
@@ -4349,29 +4456,42 @@ function createNotesWindow(ctx) {
   shadow.appendChild(authorStyle);
   const root = document.createElement("div");
   root.className = "lg-window";
-  root.style.width = "400px";
-  root.style.height = "500px";
-  root.style.top = "100px";
-  root.style.right = "100px";
+  if (floatWidget) {
+    root.style.position = "relative";
+    root.style.width = "100%";
+    root.style.height = "100%";
+    root.style.top = "0";
+    root.style.left = "0";
+  } else {
+    root.style.position = "fixed";
+    root.style.width = savedPrefs.width || "400px";
+    root.style.height = savedPrefs.height || "500px";
+    root.style.top = savedPrefs.top || "100px";
+    root.style.left = savedPrefs.left || "100px";
+  }
   root.style.pointerEvents = "auto";
-  if (savedPrefs.width)
-    root.style.width = savedPrefs.width;
-  if (savedPrefs.height)
-    root.style.height = savedPrefs.height;
-  if (savedPrefs.top)
-    root.style.top = savedPrefs.top;
-  if (savedPrefs.left)
-    root.style.left = savedPrefs.left;
-  if (savedPrefs.right && !savedPrefs.left)
-    root.style.right = savedPrefs.right;
   const header = document.createElement("div");
   header.className = "lg-window-header";
   header.innerHTML = `
     <div class="lg-window-title">${ICON_GLASS} Looking Glass</div>
     <div class="lg-window-controls">
+      <button class="lg-window-popout" title="${poppedOut ? "Return to Lumiverse window" : "Pop out to desktop window"}">${poppedOut ? ICON_RETURN : ICON_POPOUT}</button>
       <button class="lg-window-close" title="Close">${ICON_CLOSE}</button>
     </div>
   `;
+  const popoutBtn = header.querySelector(".lg-window-popout");
+  if (!isDesktopWindow()) {
+    popoutBtn.style.display = "none";
+  } else {
+    popoutBtn.onclick = () => {
+      const invoke = getTauriInvoke();
+      if (invoke && floatWidget) {
+        invoke(poppedOut ? "return_extension_widget" : "show_extension_widget", {
+          widgetId: floatWidget.widgetId
+        });
+      }
+    };
+  }
   const viewport = document.createElement("div");
   viewport.className = "lg-viewport lg-body";
   const content = document.createElement("div");
@@ -4385,20 +4505,41 @@ function createNotesWindow(ctx) {
   shadow.appendChild(root);
   let isDragging = false;
   let isResizing = false;
-  let startX = 0, startY = 0, startW = 0, startH = 0, startTop = 0, startLeft = 0;
+  let startX = 0, startY = 0, startW = defaultW, startH = defaultH, startTop = defaultY, startLeft = defaultX;
   function savePrefs() {
-    const prefs = { width: root.style.width, height: root.style.height, top: root.style.top, left: root.style.left };
+    let w = root.style.width;
+    let h = root.style.height;
+    let t = root.style.top;
+    let l = root.style.left;
+    if (floatWidget) {
+      const pos = floatWidget.getPosition?.() || { x: defaultX, y: defaultY };
+      t = `${pos.y}px`;
+      l = `${pos.x}px`;
+      w = `${startW}px`;
+      h = `${startH}px`;
+    }
+    const prefs = { width: w, height: h, top: t, left: l };
     localStorage.setItem(STORAGE_KEY_PREFS, JSON.stringify(prefs));
   }
+  floatWidget?.onDragEnd?.((pos) => {
+    const current = JSON.parse(localStorage.getItem(STORAGE_KEY_PREFS) || "{}");
+    localStorage.setItem(STORAGE_KEY_PREFS, JSON.stringify({ ...current, left: `${pos.x}px`, top: `${pos.y}px` }));
+  });
   header.addEventListener("mousedown", (e) => {
     if (e.target.closest("button"))
       return;
     isDragging = true;
     startX = e.clientX;
     startY = e.clientY;
-    const rect = root.getBoundingClientRect();
-    startTop = rect.top;
-    startLeft = rect.left;
+    if (floatWidget) {
+      const pos = floatWidget.getPosition?.() || { x: defaultX, y: defaultY };
+      startTop = pos.y;
+      startLeft = pos.x;
+    } else {
+      const rect = root.getBoundingClientRect();
+      startTop = rect.top;
+      startLeft = rect.left;
+    }
     header.style.cursor = "grabbing";
     e.preventDefault();
   });
@@ -4406,18 +4547,30 @@ function createNotesWindow(ctx) {
     isResizing = true;
     startX = e.clientX;
     startY = e.clientY;
-    startW = root.offsetWidth;
-    startH = root.offsetHeight;
+    startW = floatWidget ? floatWidget.getPosition?.() ? root.offsetWidth : defaultW : root.offsetWidth;
+    startH = floatWidget ? floatWidget.getPosition?.() ? root.offsetHeight : defaultH : root.offsetHeight;
     e.preventDefault();
   });
   const onMouseMove = (e) => {
     if (isDragging) {
-      root.style.top = `${startTop + (e.clientY - startY)}px`;
-      root.style.left = `${startLeft + (e.clientX - startX)}px`;
-      root.style.right = "auto";
+      const newTop = startTop + (e.clientY - startY);
+      const newLeft = startLeft + (e.clientX - startX);
+      if (floatWidget) {
+        floatWidget.moveTo(newLeft, newTop);
+      } else {
+        root.style.top = `${newTop}px`;
+        root.style.left = `${newLeft}px`;
+        root.style.right = "auto";
+      }
     } else if (isResizing) {
-      root.style.width = `${Math.max(280, startW + (e.clientX - startX))}px`;
-      root.style.height = `${Math.max(200, startH + (e.clientY - startY))}px`;
+      const newW = Math.max(280, startW + (e.clientX - startX));
+      const newH = Math.max(200, startH + (e.clientY - startY));
+      if (floatWidget) {
+        floatWidget.setSize(newW, newH);
+      } else {
+        root.style.width = `${newW}px`;
+        root.style.height = `${newH}px`;
+      }
     }
   };
   const onMouseUp = () => {
@@ -4431,7 +4584,16 @@ function createNotesWindow(ctx) {
   window.addEventListener("mousemove", onMouseMove);
   window.addEventListener("mouseup", onMouseUp);
   const closeBtn = header.querySelector(".lg-window-close");
-  closeBtn.onclick = () => hide();
+  closeBtn.onclick = () => {
+    if (poppedOut) {
+      const invoke = getTauriInvoke();
+      if (invoke && floatWidget) {
+        invoke("return_extension_widget", { widgetId: floatWidget.widgetId });
+        return;
+      }
+    }
+    hide();
+  };
   function hasNotes() {
     return notes.status === "ok" && notes.text.trim().length > 0;
   }
@@ -4442,12 +4604,18 @@ function createNotesWindow(ctx) {
       rendered = renderNotes(notes.text);
     } catch (err) {
       console.error("[Looking Glass] Failed to render creator notes", err);
-      rendered = { html: `<pre>${escapeHtml(notes.text)}</pre>`, css: "", hoisted: "" };
+      rendered = {
+        html: `<pre>${escapeHtml(notes.text)}</pre>`,
+        ambientHtml: "",
+        contentHtml: `<pre>${escapeHtml(notes.text)}</pre>`,
+        css: "",
+        hoisted: ""
+      };
     }
     renderedFor = notes.text;
   }
   function syncGlobalLayer(active) {
-    if (!active || !rendered || !rendered.html.trim()) {
+    if (!active || !rendered || !rendered.ambientHtml.trim()) {
       layer?.destroy();
       layer = null;
       layerKey = "";
@@ -4455,16 +4623,17 @@ function createNotesWindow(ctx) {
     }
     if (layer && layerKey === renderedFor)
       return;
-    layer?.destroy();
-    layer = mountOverlay(ctx, "lg-global-layer");
+    if (!layer) {
+      layer = mountOverlay(ctx, "lg-global-layer");
+    }
     Object.assign(layer.root.style, {
       position: "fixed",
       inset: "0",
       pointerEvents: "none",
-      zIndex: "2"
+      zIndex: "9990",
+      overflow: "hidden"
     });
-    layer.root.innerHTML = rendered.html;
-    layer.root.replaceChildren(...findFixedRoots(layer.root));
+    layer.root.innerHTML = rendered.ambientHtml;
     layerKey = renderedFor;
   }
   function renderWindow() {
@@ -4484,12 +4653,8 @@ function createNotesWindow(ctx) {
     const hasAuthorCss = rendered.css.trim().length > 0;
     authorStyle.textContent = scopePageSelectors(rendered.css, BODY_SCOPE);
     content.className = hasAuthorCss ? "lg-window-content" : "lg-window-content lg-prose";
-    content.innerHTML = rendered.html;
+    content.innerHTML = layer ? rendered.contentHtml : rendered.html;
     content.scrollTop = 0;
-    if (layer) {
-      for (const el of findFixedRoots(content))
-        el.remove();
-    }
   }
   function update() {
     const globalMode = settings.renderMode === "global";
@@ -4504,13 +4669,21 @@ function createNotesWindow(ctx) {
   }
   function show() {
     open = true;
-    host.style.display = "block";
+    if (floatWidget) {
+      floatWidget.setVisible(true);
+    } else {
+      host.style.display = "block";
+    }
     windowKey = "";
     update();
   }
   function hide() {
     open = false;
-    host.style.display = "none";
+    if (floatWidget) {
+      floatWidget.setVisible(false);
+    } else {
+      host.style.display = "none";
+    }
     update();
   }
   function toggle() {
@@ -4544,14 +4717,23 @@ function createNotesWindow(ctx) {
       layer = null;
       hoistedStyle.clear();
       globalStyle.clear();
-      overlay.destroy();
+      if (floatWidget)
+        floatWidget.destroy();
+      overlay?.destroy();
     }
   };
 }
 
 // src/frontend.ts
+function isPoppedOut2() {
+  if (typeof window === "undefined")
+    return false;
+  const params = new URLSearchParams(window.location.search);
+  return params.get("desktopWidgetExtension") === "looking_glass";
+}
 function setup(ctx) {
   const cleanups = [];
+  const poppedOut = isPoppedOut2();
   const removeStyle = ctx.dom.addStyle(NOTES_CSS);
   cleanups.push(removeStyle);
   const windowUI = createNotesWindow(ctx);
@@ -4563,45 +4745,55 @@ function setup(ctx) {
     const settings = loadSettings();
     return settings.renderMode === "global" && settings.alwaysInject;
   }
-  const settingsMount = ctx.ui.mount("settings_extensions");
-  const settingsUI = createSettingsUI((settings) => {
-    windowUI.setSettings(settings);
-    if (settings.renderMode === "global" && settings.alwaysInject && !windowUI.hasNotes()) {
-      requestNotes();
-    }
-  });
-  settingsMount.appendChild(settingsUI.root);
-  cleanups.push(() => settingsUI.destroy());
   windowUI.setSettings(loadSettings());
-  const widget = ctx.ui.createFloatWidget({
-    width: 48,
-    height: 48,
-    tooltip: "Character Notes (Looking Glass)",
-    chromeless: true
-  });
-  cleanups.push(() => widget.destroy());
-  const widgetContent = document.createElement("div");
-  widgetContent.className = "lg-float-widget";
-  widgetContent.innerHTML = ICON_GLASS;
-  widget.root.appendChild(widgetContent);
-  const POS_KEY = "looking-glass-widget-pos";
-  const savedPos = JSON.parse(localStorage.getItem(POS_KEY) || "{}");
-  if (savedPos.x !== undefined && savedPos.y !== undefined) {
-    widget.moveTo(savedPos.x, savedPos.y);
+  if (!poppedOut) {
+    try {
+      const settingsMount = ctx.ui.mount("settings_extensions");
+      const settingsUI = createSettingsUI((settings) => {
+        windowUI.setSettings(settings);
+        if (settings.renderMode === "global" && settings.alwaysInject && !windowUI.hasNotes()) {
+          requestNotes();
+        }
+      });
+      settingsMount.appendChild(settingsUI.root);
+      cleanups.push(() => settingsUI.destroy());
+    } catch (err) {
+      console.warn("[Looking Glass] Could not mount settings UI", err);
+    }
+    try {
+      const widget = ctx.ui.createFloatWidget({
+        width: 48,
+        height: 48,
+        tooltip: "Character Notes (Looking Glass)",
+        chromeless: true
+      });
+      cleanups.push(() => widget.destroy());
+      const widgetContent = document.createElement("div");
+      widgetContent.className = "lg-float-widget";
+      widgetContent.innerHTML = ICON_GLASS;
+      widget.root.appendChild(widgetContent);
+      const POS_KEY = "looking-glass-widget-pos";
+      const savedPos = JSON.parse(localStorage.getItem(POS_KEY) || "{}");
+      if (savedPos.x !== undefined && savedPos.y !== undefined) {
+        widget.moveTo(savedPos.x, savedPos.y);
+      }
+      widget.onDragEnd((pos) => {
+        localStorage.setItem(POS_KEY, JSON.stringify(pos));
+      });
+      widgetContent.addEventListener("click", (e) => {
+        e.stopPropagation();
+        windowUI.toggle();
+        if (windowUI.isOpen()) {
+          requestNotes();
+        }
+      });
+    } catch (err) {
+      console.warn("[Looking Glass] Could not create launcher float widget", err);
+    }
   }
-  widget.onDragEnd((pos) => {
-    localStorage.setItem(POS_KEY, JSON.stringify(pos));
-  });
-  if (globalStylesWanted()) {
+  if (poppedOut || globalStylesWanted()) {
     requestNotes();
   }
-  widgetContent.addEventListener("click", (e) => {
-    e.stopPropagation();
-    windowUI.toggle();
-    if (windowUI.isOpen()) {
-      requestNotes();
-    }
-  });
   const msgUnsub = ctx.onBackendMessage((msg) => {
     if (msg.type === "notes_result") {
       if (msg.characterId)

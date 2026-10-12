@@ -4,14 +4,21 @@ import { ICON_GLASS } from "./ui/icons";
 import { createNotesWindow } from "./ui/notes-window";
 import { createSettingsUI, loadSettings } from "./ui/settings";
 
+function isPoppedOut(): boolean {
+  if (typeof window === "undefined") return false;
+  const params = new URLSearchParams(window.location.search);
+  return params.get("desktopWidgetExtension") === "looking_glass";
+}
+
 export function setup(ctx: SpindleFrontendContext) {
   const cleanups: (() => void)[] = [];
+  const poppedOut = isPoppedOut();
 
   // 1. Add base styles
   const removeStyle = ctx.dom.addStyle(NOTES_CSS);
   cleanups.push(removeStyle);
 
-  // 2. Create the notes window
+  // 2. Create the notes window (registered as the primary float widget / desktop popout target)
   const windowUI = createNotesWindow(ctx);
   cleanups.push(() => windowUI.destroy());
 
@@ -25,59 +32,67 @@ export function setup(ctx: SpindleFrontendContext) {
     return settings.renderMode === "global" && settings.alwaysInject;
   }
 
-  // 3. Mount Settings UI to the extensions settings area
-  const settingsMount = ctx.ui.mount("settings_extensions");
-  const settingsUI = createSettingsUI((settings) => {
-    windowUI.setSettings(settings);
-    if (settings.renderMode === "global" && settings.alwaysInject && !windowUI.hasNotes()) {
-      requestNotes();
-    }
-  });
-  settingsMount.appendChild(settingsUI.root);
-  cleanups.push(() => settingsUI.destroy());
-
   // Initial settings sync
   windowUI.setSettings(loadSettings());
 
-  // 4. Create the float widget
-  const widget = ctx.ui.createFloatWidget({
-    width: 48,
-    height: 48,
-    tooltip: "Character Notes (Looking Glass)",
-    chromeless: true,
-  });
-  cleanups.push(() => widget.destroy());
+  // 3. Mount Settings UI (only in main application window, not in native pop-out)
+  if (!poppedOut) {
+    try {
+      const settingsMount = ctx.ui.mount("settings_extensions");
+      const settingsUI = createSettingsUI((settings) => {
+        windowUI.setSettings(settings);
+        if (settings.renderMode === "global" && settings.alwaysInject && !windowUI.hasNotes()) {
+          requestNotes();
+        }
+      });
+      settingsMount.appendChild(settingsUI.root);
+      cleanups.push(() => settingsUI.destroy());
+    } catch (err) {
+      console.warn("[Looking Glass] Could not mount settings UI", err);
+    }
 
-  const widgetContent = document.createElement("div");
-  widgetContent.className = "lg-float-widget";
-  widgetContent.innerHTML = ICON_GLASS;
-  widget.root.appendChild(widgetContent);
+    // 4. Create the float widget launcher icon on the page
+    try {
+      const widget = ctx.ui.createFloatWidget({
+        width: 48,
+        height: 48,
+        tooltip: "Character Notes (Looking Glass)",
+        chromeless: true,
+      });
+      cleanups.push(() => widget.destroy());
 
-  // Persistence for widget position
-  const POS_KEY = "looking-glass-widget-pos";
-  const savedPos = JSON.parse(localStorage.getItem(POS_KEY) || "{}");
-  if (savedPos.x !== undefined && savedPos.y !== undefined) {
-    widget.moveTo(savedPos.x, savedPos.y);
+      const widgetContent = document.createElement("div");
+      widgetContent.className = "lg-float-widget";
+      widgetContent.innerHTML = ICON_GLASS;
+      widget.root.appendChild(widgetContent);
+
+      // Persistence for launcher widget position
+      const POS_KEY = "looking-glass-widget-pos";
+      const savedPos = JSON.parse(localStorage.getItem(POS_KEY) || "{}");
+      if (savedPos.x !== undefined && savedPos.y !== undefined) {
+        widget.moveTo(savedPos.x, savedPos.y);
+      }
+
+      widget.onDragEnd((pos) => {
+        localStorage.setItem(POS_KEY, JSON.stringify(pos));
+      });
+
+      widgetContent.addEventListener("click", (e) => {
+        e.stopPropagation();
+        windowUI.toggle();
+        if (windowUI.isOpen()) {
+          requestNotes();
+        }
+      });
+    } catch (err) {
+      console.warn("[Looking Glass] Could not create launcher float widget", err);
+    }
   }
 
-  widget.onDragEnd((pos) => {
-    localStorage.setItem(POS_KEY, JSON.stringify(pos));
-  });
-
-  // 5. Handle interactions
-
-  // Pre-fetch so global styles are live before the widget is ever opened
-  if (globalStylesWanted()) {
+  // 5. Pre-fetch notes if needed or if popped out
+  if (poppedOut || globalStylesWanted()) {
     requestNotes();
   }
-
-  widgetContent.addEventListener("click", (e) => {
-    e.stopPropagation();
-    windowUI.toggle();
-    if (windowUI.isOpen()) {
-      requestNotes();
-    }
-  });
 
   // 6. Backend message handling
   const msgUnsub = ctx.onBackendMessage((msg: any) => {
@@ -93,6 +108,6 @@ export function setup(ctx: SpindleFrontendContext) {
   cleanups.push(msgUnsub);
 
   return () => {
-    cleanups.forEach(c => c());
+    cleanups.forEach((c) => c());
   };
 }

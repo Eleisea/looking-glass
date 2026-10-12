@@ -95,6 +95,13 @@ export const NOTES_CSS = `
   fill: var(--lumiverse-accent);
 }
 
+.lg-window-controls {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.lg-window-popout,
 .lg-window-close {
   width: 28px;
   height: 28px;
@@ -109,9 +116,18 @@ export const NOTES_CSS = `
   transition: all 0.2s ease;
 }
 
+.lg-window-popout:hover,
 .lg-window-close:hover {
   background: rgba(255, 255, 255, 0.1);
   color: var(--lumiverse-text);
+}
+
+.lg-global-layer {
+  position: fixed !important;
+  inset: 0 !important;
+  pointer-events: none !important;
+  z-index: 9990 !important;
+  overflow: hidden !important;
 }
 
 /* The viewport doubles as the notes' <body> (see scopePageSelectors) and

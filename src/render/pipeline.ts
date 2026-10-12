@@ -24,6 +24,10 @@ function getPurify(): typeof DOMPurify {
 export interface RenderedNotes {
   /** Sanitised body markup (no <style> elements). */
   html: string;
+  /** Ambient fixed overlay markup (e.g. rain, snow, particles). */
+  ambientHtml: string;
+  /** Readable card content without ambient overlay elements. */
+  contentHtml: string;
   /** Sanitised author CSS, with @import / @font-face removed (see `hoisted`). */
   css: string;
   /**
@@ -219,6 +223,80 @@ function sanitizeMarkup(html: string): string {
   return wrapper.innerHTML;
 }
 
+/**
+ * Splits sanitized notes markup into ambient (position: fixed) overlay elements
+ * and content elements.
+ *
+ * Runs completely generically against the browser's CSS cascade by evaluating
+ * the markup and author CSS inside a temporary hidden container attached to
+ * document.body. Elements computed with `position: fixed` (or styled inline with
+ * position: fixed) are isolated into `ambientHtml` (for full-screen atmospheric
+ * effects like rain, snow, mist, vignettes), while the remaining markup is
+ * preserved in `contentHtml`.
+ */
+export function splitAmbientElements(html: string, css: string): { ambientHtml: string; contentHtml: string } {
+  if (typeof document === "undefined" || !document.body || !html.trim()) {
+    return { ambientHtml: "", contentHtml: html };
+  }
+
+  const temp = document.createElement("div");
+  temp.style.cssText = "position: absolute !important; left: -99999px !important; top: -99999px !important; width: 0 !important; height: 0 !important; overflow: hidden !important; visibility: hidden !important;";
+
+  const styleEl = document.createElement("style");
+  styleEl.textContent = css;
+  temp.appendChild(styleEl);
+
+  const sandbox = document.createElement("div");
+  sandbox.innerHTML = html;
+  temp.appendChild(sandbox);
+
+  document.body.appendChild(temp);
+
+  const ambientNodes: HTMLElement[] = [];
+  try {
+    const all = Array.from(sandbox.querySelectorAll<HTMLElement>("*"));
+    for (const el of all) {
+      let isFixed = false;
+      try {
+        const computed = window.getComputedStyle(el);
+        if (computed.position === "fixed") {
+          isFixed = true;
+        }
+      } catch {
+        // ignore
+      }
+
+      if (!isFixed) {
+        const inline = el.getAttribute("style") || "";
+        if (/\bposition\s*:\s*fixed\b/i.test(inline)) {
+          isFixed = true;
+        }
+      }
+
+      if (isFixed) {
+        // Keep only top-level fixed elements (avoid duplicating descendants)
+        if (!ambientNodes.some((existing) => existing.contains(el))) {
+          ambientNodes.push(el);
+        }
+      }
+    }
+
+    if (ambientNodes.length === 0) {
+      return { ambientHtml: "", contentHtml: html };
+    }
+
+    const ambientHtml = ambientNodes.map((el) => el.outerHTML).join("\n");
+    for (const el of ambientNodes) {
+      el.remove();
+    }
+    const contentHtml = sandbox.innerHTML;
+
+    return { ambientHtml, contentHtml };
+  } finally {
+    temp.remove();
+  }
+}
+
 // ── Public API ──────────────────────────────────────────────────────────────
 
 export function renderNotes(source: string): RenderedNotes {
@@ -233,5 +311,8 @@ export function renderNotes(source: string): RenderedNotes {
   });
 
   const { hoisted, rest } = splitHoistedCss(cssBlocks.join("\n"));
-  return { html: sanitizeMarkup(markup), css: rest, hoisted };
+  const cleanHtml = sanitizeMarkup(markup);
+  const { ambientHtml, contentHtml } = splitAmbientElements(cleanHtml, rest);
+
+  return { html: cleanHtml, ambientHtml, contentHtml, css: rest, hoisted };
 }
