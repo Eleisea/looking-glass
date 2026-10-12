@@ -1,9 +1,8 @@
 import type { SpindleFrontendContext } from "lumiverse-spindle-types";
 import { NOTES_CSS } from "./ui/styles";
+import { ICON_GLASS } from "./ui/icons";
 import { createNotesWindow } from "./ui/notes-window";
-import { createSettingsUI } from "./ui/settings";
-
-const ICON_GLASS = `<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 32 32"><g fill="currentColor"><path d="M16 27.15c3.733 0 6.76-4.867 6.76-10.87S19.733 5.41 16 5.41s-6.76 4.867-6.76 10.87S12.267 27.15 16 27.15m5.76-10.87c0 2.845-.72 5.373-1.83 7.158c-1.118 1.8-2.535 2.712-3.93 2.712s-2.812-.912-3.93-2.712a11 11 0 0 1-1.024-2.172l9.85-10.134c.543 1.49.864 3.249.864 5.148"/><path d="M16 1a5.67 5.67 0 0 0-4.719 2.525l-1.024 1.536a3 3 0 0 1-1.154 1.02l-1.583.79a5 5 0 0 0-2.303 6.568l.601 1.304a3 3 0 0 1 0 2.514l-.601 1.304a5 5 0 0 0 2.303 6.567l1.583.791a3 3 0 0 1 1.154 1.02l1.024 1.536a5.67 5.67 0 0 0 9.438 0l1.024-1.536a3 3 0 0 1 1.154-1.02l1.583-.79a5 5 0 0 0 2.303-6.568l-.602-1.304a3 3 0 0 1 0-2.514l.602-1.304a5 5 0 0 0-2.303-6.567l-1.583-.791a3 3 0 0 1-1.154-1.02l-1.024-1.536A5.67 5.67 0 0 0 15.999 1m-3.055 3.635a3.67 3.67 0 0 1 6.11 0l1.024 1.536a5 5 0 0 0 1.924 1.698l1.582.792a3 3 0 0 1 1.382 3.94l-.601 1.304a5 5 0 0 0 0 4.19l.601 1.304a3 3 0 0 1-1.382 3.94l-1.582.792a5 5 0 0 0-1.924 1.698l-1.024 1.536a3.67 3.67 0 0 1-6.11 0l-1.024-1.536a5 5 0 0 0-1.924-1.698l-1.582-.792a3 3 0 0 1-1.382-3.94l.601-1.304a5 5 0 0 0 0-4.19l-.6-1.305a3 3 0 0 1 1.382-3.94l1.582-.792a5 5 0 0 0 1.924-1.698z"/></g></svg>`;
+import { createSettingsUI, loadSettings } from "./ui/settings";
 
 export function setup(ctx: SpindleFrontendContext) {
   const cleanups: (() => void)[] = [];
@@ -13,24 +12,32 @@ export function setup(ctx: SpindleFrontendContext) {
   cleanups.push(removeStyle);
 
   // 2. Create the notes window
-  const windowUI = createNotesWindow();
+  const windowUI = createNotesWindow(ctx);
   cleanups.push(() => windowUI.destroy());
+
+  function requestNotes() {
+    ctx.sendToBackend({ type: "get_notes" });
+  }
+
+  /** Global styles are applied while the widget is open, or always when opted in. */
+  function globalStylesWanted() {
+    const settings = loadSettings();
+    return settings.renderMode === "global" && settings.alwaysInject;
+  }
 
   // 3. Mount Settings UI to the extensions settings area
   const settingsMount = ctx.ui.mount("settings_extensions");
   const settingsUI = createSettingsUI((settings) => {
-    windowUI.updateSettings(settings);
+    windowUI.setSettings(settings);
+    if (settings.renderMode === "global" && settings.alwaysInject && !windowUI.hasNotes()) {
+      requestNotes();
+    }
   });
   settingsMount.appendChild(settingsUI.root);
   cleanups.push(() => settingsUI.destroy());
 
   // Initial settings sync
-  const STORAGE_KEY = "looking-glass-settings";
-  const initialSettings = JSON.parse(localStorage.getItem(STORAGE_KEY) || JSON.stringify({
-    renderMode: "window",
-    alwaysInject: false,
-  }));
-  windowUI.updateSettings(initialSettings);
+  windowUI.setSettings(loadSettings());
 
   // 4. Create the float widget
   const widget = ctx.ui.createFloatWidget({
@@ -58,20 +65,16 @@ export function setup(ctx: SpindleFrontendContext) {
   });
 
   // 5. Handle interactions
-  function requestNotes() {
-    ctx.sendToBackend({ type: "get_notes" });
-  }
 
-  // Pre-fetch if alwaysInject is true
-  if (initialSettings.renderMode === "global" && initialSettings.alwaysInject) {
+  // Pre-fetch so global styles are live before the widget is ever opened
+  if (globalStylesWanted()) {
     requestNotes();
   }
 
   widgetContent.addEventListener("click", (e) => {
     e.stopPropagation();
     windowUI.toggle();
-    // Check if it's now visible
-    if (windowUI.root.style.display !== "none") {
+    if (windowUI.isOpen()) {
       requestNotes();
     }
   });
@@ -79,11 +82,10 @@ export function setup(ctx: SpindleFrontendContext) {
   // 6. Backend message handling
   const msgUnsub = ctx.onBackendMessage((msg: any) => {
     if (msg.type === "notes_result") {
-      if (msg.characterId) windowUI.updateCharacterId(msg.characterId);
-      windowUI.updateContent(msg.notes);
+      if (msg.characterId) windowUI.setCharacterId(msg.characterId);
+      windowUI.setNotes({ status: msg.status ?? "ok", text: msg.notes ?? "" });
     } else if (msg.type === "chat_switched") {
-      const current = JSON.parse(localStorage.getItem(STORAGE_KEY) || "{}");
-      if (!windowUI.root.classList.contains("hidden") || (current.renderMode === "global" && current.alwaysInject)) {
+      if (windowUI.isOpen() || globalStylesWanted()) {
         requestNotes();
       }
     }

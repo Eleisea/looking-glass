@@ -114,9 +114,23 @@ export const NOTES_CSS = `
   color: var(--lumiverse-text);
 }
 
-.lg-window-content {
+/* The viewport doubles as the notes' <body> (see scopePageSelectors) and
+   confines position:fixed descendants (rain, overlays, body:before) to the
+   widget. "contain: paint" makes it their containing block and clips them. */
+.lg-viewport {
+  position: relative;
   flex: 1;
+  min-height: 0;
+  overflow: hidden;
+  contain: layout paint;
+  isolation: isolate;
+}
+
+.lg-window-content {
+  position: absolute;
+  inset: 0;
   padding: 20px;
+  overflow-x: hidden;
   overflow-y: auto;
   line-height: 1.6;
   font-size: 14px;
@@ -133,21 +147,22 @@ export const NOTES_CSS = `
   border-radius: 3px;
 }
 
-.lg-window-content p {
+/* Default prose styling: only for plain-markdown notes (no author <style>). */
+.lg-prose p {
   margin-bottom: 1em;
 }
 
-.lg-window-content h1, .lg-window-content h2, .lg-window-content h3 {
+.lg-prose h1, .lg-prose h2, .lg-prose h3 {
   margin: 1.5em 0 0.5em;
   font-weight: 600;
   color: var(--lumiverse-accent);
 }
 
-.lg-window-content h1:first-child, .lg-window-content h2:first-child {
+.lg-prose h1:first-child, .lg-prose h2:first-child {
   margin-top: 0;
 }
 
-.lg-window-content code {
+.lg-prose code {
   background: var(--lumiverse-fill-subtle);
   padding: 0.2em 0.4em;
   border-radius: 4px;
@@ -155,12 +170,17 @@ export const NOTES_CSS = `
   font-size: 0.9em;
 }
 
-.lg-window-content blockquote {
+.lg-prose blockquote {
   border-left: 3px solid var(--lumiverse-accent);
   margin: 1em 0;
   padding-left: 1em;
   color: var(--lumiverse-text-muted);
   font-style: italic;
+}
+
+.lg-prose img {
+  max-width: 100%;
+  height: auto;
 }
 
 .lg-window-resize-handle {

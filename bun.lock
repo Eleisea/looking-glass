@@ -6,10 +6,11 @@
       "name": "lumiverse-looking-glass",
       "dependencies": {
         "@types/marked": "^6.0.0",
+        "dompurify": "^3.4.16",
         "marked": "^18.0.3",
       },
       "devDependencies": {
-        "lumiverse-spindle-types": "0.4.62",
+        "lumiverse-spindle-types": "0.5.17",
         "typescript": "^5.7.3",
       },
     },
@@ -17,7 +18,11 @@
   "packages": {
     "@types/marked": ["@types/marked@6.0.0", "", { "dependencies": { "marked": "*" } }, "sha512-jmjpa4BwUsmhxcfsgUit/7A9KbrC48Q0q8KvnY107ogcjGgTFDlIL3RpihNpx2Mu1hM4mdFQjoVc4O6JoGKHsA=="],
 
-    "lumiverse-spindle-types": ["lumiverse-spindle-types@0.4.62", "", {}, "sha512-GwAsxfQ3w2NOZFGAaVzU0TyMmmXIMnS/mliEn5QYKKwuVie4VfUjkIZldb60pS7ybdXN9JZkBPIkIz6VEFdo7w=="],
+    "@types/trusted-types": ["@types/trusted-types@2.0.7", "", {}, "sha512-ScaPdn1dQczgbl0QFTeTOmVHFULt394XJgOQNoyVhZ6r2vLnMLJfBPd53SB52T/3G36VI1/g2MZaX0cwDuXsfw=="],
+
+    "dompurify": ["dompurify@3.4.16", "", { "optionalDependencies": { "@types/trusted-types": "^2.0.7" } }, "sha512-sqo+pNp3qRhCIpbgRi1y8Tgk27Bo2Ry7w0dC1NBeNTdZChWjz9Xb/KOoZbRP/R6pQZ80Qw8YhXw13hWWBbMRnQ=="],
+
+    "lumiverse-spindle-types": ["lumiverse-spindle-types@0.5.17", "", {}, "sha512-l7wFIYd7ATBnDDhVjVpvVqa5XP/lBOPqqKmXd3QXc1pAK3nbMhQ0H6hPN2TTSr1XjN7qgf2k3Iz+HDCdDewoOg=="],
 
     "marked": ["marked@18.0.3", "", { "bin": { "marked": "bin/marked.js" } }, "sha512-7VT90JOkDeaRWpfjOReRGPEKn0ecdARBkDGL+tT1wZY0efPPqkUxLUSmzy/C7TIylQYJC9STISEsCHrqb/7VIA=="],
 

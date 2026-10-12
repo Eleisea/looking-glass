@@ -1,14 +1,33 @@
+export type RenderMode = "widget" | "global";
+
+export interface LgSettings {
+  renderMode: RenderMode;
+  alwaysInject: boolean;
+}
+
+export const SETTINGS_KEY = "looking-glass-settings";
+
+export function loadSettings(): LgSettings {
+  let stored: Partial<{ renderMode: string; alwaysInject: boolean }> = {};
+  try {
+    stored = JSON.parse(localStorage.getItem(SETTINGS_KEY) || "{}") ?? {};
+  } catch {
+    stored = {};
+  }
+  return {
+    // "window" was the pre-1.2 name for what is now the widget-only mode.
+    renderMode: stored.renderMode === "global" ? "global" : "widget",
+    alwaysInject: stored.alwaysInject === true,
+  };
+}
+
 export interface SettingsUI {
   root: HTMLElement;
   destroy(): void;
 }
 
-export function createSettingsUI(onChanged: (settings: { renderMode: string, alwaysInject: boolean }) => void): SettingsUI {
-  const STORAGE_KEY = "looking-glass-settings";
-  const settings = JSON.parse(localStorage.getItem(STORAGE_KEY) || JSON.stringify({
-    renderMode: "window",
-    alwaysInject: false,
-  }));
+export function createSettingsUI(onChanged: (settings: LgSettings) => void): SettingsUI {
+  const settings = loadSettings();
 
   const root = document.createElement("section");
   root.className = "lg-settings-card";
@@ -32,22 +51,22 @@ export function createSettingsUI(onChanged: (settings: { renderMode: string, alw
   modeItem.innerHTML = `
     <label style="display:block; font-weight:600; margin-bottom:4px;">Style Rendering Mode</label>
     <select id="lg-mode-select" style="width:100%; padding:8px; border-radius:6px; background:var(--lumiverse-fill-subtle); color:inherit; border:1px solid var(--lumiverse-border);">
-      <option value="window" ${settings.renderMode === "window" ? "selected" : ""}>Window Only (Isolated)</option>
+      <option value="widget" ${settings.renderMode === "widget" ? "selected" : ""}>Widget Only (Isolated)</option>
       <option value="global" ${settings.renderMode === "global" ? "selected" : ""}>Global (Entire App)</option>
     </select>
-    <p style="font-size:0.8em; opacity:0.6; margin-top:4px;">Global allows character notes to re-theme the entire Lumiverse interface.</p>
+    <p style="font-size:0.8em; opacity:0.6; margin-top:4px;">Widget Only keeps everything the notes contain (styles, backgrounds, effects like rain) inside the Looking Glass widget. Global lets the notes re-theme the entire Lumiverse interface.</p>
   `;
 
   // Always Inject
   const alwaysItem = document.createElement("div");
   alwaysItem.id = "lg-always-container";
-  alwaysItem.style.opacity = settings.renderMode === "window" ? "0.5" : "1";
+  alwaysItem.style.opacity = settings.renderMode === "widget" ? "0.5" : "1";
   alwaysItem.innerHTML = `
     <label style="display:flex; align-items:center; gap:8px; cursor:pointer;">
-      <input type="checkbox" id="lg-always-check" ${settings.alwaysInject ? "checked" : ""} ${settings.renderMode === "window" ? "disabled" : ""}>
+      <input type="checkbox" id="lg-always-check" ${settings.alwaysInject ? "checked" : ""} ${settings.renderMode === "widget" ? "disabled" : ""}>
       <span>Always Apply Global Styles</span>
     </label>
-    <p style="font-size:0.8em; opacity:0.6; margin-top:4px;">Apply global styles even when the Looking Glass window is closed.</p>
+    <p style="font-size:0.8em; opacity:0.6; margin-top:4px;">Keep the notes' global styling and ambient effects active even when the Looking Glass widget is closed.</p>
   `;
 
   body.appendChild(modeItem);
@@ -59,15 +78,15 @@ export function createSettingsUI(onChanged: (settings: { renderMode: string, alw
   const alwaysCheck = alwaysItem.querySelector("#lg-always-check") as HTMLInputElement;
 
   function update() {
-    settings.renderMode = modeSelect.value;
+    settings.renderMode = modeSelect.value === "global" ? "global" : "widget";
     settings.alwaysInject = alwaysCheck.checked;
-    
+
     // UI state
-    alwaysItem.style.opacity = settings.renderMode === "window" ? "0.5" : "1";
-    alwaysCheck.disabled = settings.renderMode === "window";
-    
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(settings));
-    onChanged(settings);
+    alwaysItem.style.opacity = settings.renderMode === "widget" ? "0.5" : "1";
+    alwaysCheck.disabled = settings.renderMode === "widget";
+
+    localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings));
+    onChanged({ ...settings });
   }
 
   modeSelect.addEventListener("change", update);
@@ -77,6 +96,6 @@ export function createSettingsUI(onChanged: (settings: { renderMode: string, alw
     root,
     destroy() {
       root.remove();
-    }
+    },
   };
 }

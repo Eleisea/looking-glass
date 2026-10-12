@@ -15,7 +15,7 @@ spindle.onFrontendMessage(async (msg: any, userId: string) => {
       
       if (!activeChat) {
         spindle.log.warn(`No active chat found for user ${userId} when requesting notes.`);
-        spindle.sendToFrontend({ type: "notes_result", notes: "No active chat found. Please open a chat first." }, userId);
+        spindle.sendToFrontend({ type: "notes_result", status: "no_chat", notes: "No active chat found. Please open a chat first." }, userId);
         return;
       }
 
@@ -29,21 +29,23 @@ spindle.onFrontendMessage(async (msg: any, userId: string) => {
       });
 
       spindle.log.info(`Successfully resolved notes (${text?.length || 0} chars)`);
+      const hasNotes = !!text && text.trim().length > 0;
       spindle.sendToFrontend({ 
         type: "notes_result", 
-        notes: text || "No creator notes found for this character.",
+        status: hasNotes ? "ok" : "empty",
+        notes: hasNotes ? text : "No creator notes found for this character.",
         characterId: activeChat.character_id
       }, userId);
     } catch (err: any) {
       const errorMsg = err?.message || String(err);
       spindle.log.error(`Failed to resolve creator notes: ${errorMsg}`);
-      spindle.sendToFrontend({ type: "notes_result", notes: `Error: Failed to load notes. ${errorMsg}` }, userId);
+      spindle.sendToFrontend({ type: "notes_result", status: "error", notes: `Error: Failed to load notes. ${errorMsg}` }, userId);
     }
   }
 });
 
 // Also listen for chat switches to notify frontend
-spindle.on("CHAT_SWITCHED", (payload) => {
+spindle.on("CHAT_SWITCHED", (payload: any) => {
   spindle.log.info(`Chat switched to ${payload.chatId}, notifying frontend`);
   spindle.sendToFrontend({ type: "chat_switched", chatId: payload.chatId });
 });
@@ -71,7 +73,7 @@ async function updateNotesForCharacter(characterId: string | undefined, text: st
 }
 
 try {
-  spindle.rpcPool.handle("phoneline", async ({ requesterExtensionId }) => {
+    (spindle.rpcPool.handle as any)("phoneline", async ({ requesterExtensionId }: any) => {
     try {
       const request = await spindle.rpcPool.read<any>(`${requesterExtensionId}.phoneline_request`);
       const { op, userId, characterId, surfaceId, itemId, field, value } = request;

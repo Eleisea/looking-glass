@@ -9,7 +9,7 @@ spindle.onFrontendMessage(async (msg, userId) => {
       const activeChat = await spindle.chats.getActive(userId);
       if (!activeChat) {
         spindle.log.warn(`No active chat found for user ${userId} when requesting notes.`);
-        spindle.sendToFrontend({ type: "notes_result", notes: "No active chat found. Please open a chat first." }, userId);
+        spindle.sendToFrontend({ type: "notes_result", status: "no_chat", notes: "No active chat found. Please open a chat first." }, userId);
         return;
       }
       spindle.log.info(`Resolving notes for chat ${activeChat.id} (char: ${activeChat.character_id}) for user ${userId}`);
@@ -20,15 +20,17 @@ spindle.onFrontendMessage(async (msg, userId) => {
         commit: false
       });
       spindle.log.info(`Successfully resolved notes (${text?.length || 0} chars)`);
+      const hasNotes = !!text && text.trim().length > 0;
       spindle.sendToFrontend({
         type: "notes_result",
-        notes: text || "No creator notes found for this character.",
+        status: hasNotes ? "ok" : "empty",
+        notes: hasNotes ? text : "No creator notes found for this character.",
         characterId: activeChat.character_id
       }, userId);
     } catch (err) {
       const errorMsg = err?.message || String(err);
       spindle.log.error(`Failed to resolve creator notes: ${errorMsg}`);
-      spindle.sendToFrontend({ type: "notes_result", notes: `Error: Failed to load notes. ${errorMsg}` }, userId);
+      spindle.sendToFrontend({ type: "notes_result", status: "error", notes: `Error: Failed to load notes. ${errorMsg}` }, userId);
     }
   }
 });

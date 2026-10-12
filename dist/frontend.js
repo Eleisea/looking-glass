@@ -115,9 +115,23 @@ var NOTES_CSS = `
   color: var(--lumiverse-text);
 }
 
-.lg-window-content {
+/* The viewport doubles as the notes' <body> (see scopePageSelectors) and
+   confines position:fixed descendants (rain, overlays, body:before) to the
+   widget. "contain: paint" makes it their containing block and clips them. */
+.lg-viewport {
+  position: relative;
   flex: 1;
+  min-height: 0;
+  overflow: hidden;
+  contain: layout paint;
+  isolation: isolate;
+}
+
+.lg-window-content {
+  position: absolute;
+  inset: 0;
   padding: 20px;
+  overflow-x: hidden;
   overflow-y: auto;
   line-height: 1.6;
   font-size: 14px;
@@ -134,21 +148,22 @@ var NOTES_CSS = `
   border-radius: 3px;
 }
 
-.lg-window-content p {
+/* Default prose styling: only for plain-markdown notes (no author <style>). */
+.lg-prose p {
   margin-bottom: 1em;
 }
 
-.lg-window-content h1, .lg-window-content h2, .lg-window-content h3 {
+.lg-prose h1, .lg-prose h2, .lg-prose h3 {
   margin: 1.5em 0 0.5em;
   font-weight: 600;
   color: var(--lumiverse-accent);
 }
 
-.lg-window-content h1:first-child, .lg-window-content h2:first-child {
+.lg-prose h1:first-child, .lg-prose h2:first-child {
   margin-top: 0;
 }
 
-.lg-window-content code {
+.lg-prose code {
   background: var(--lumiverse-fill-subtle);
   padding: 0.2em 0.4em;
   border-radius: 4px;
@@ -156,12 +171,17 @@ var NOTES_CSS = `
   font-size: 0.9em;
 }
 
-.lg-window-content blockquote {
+.lg-prose blockquote {
   border-left: 3px solid var(--lumiverse-accent);
   margin: 1em 0;
   padding-left: 1em;
   color: var(--lumiverse-text-muted);
   font-style: italic;
+}
+
+.lg-prose img {
+  max-width: 100%;
+  height: auto;
 }
 
 .lg-window-resize-handle {
@@ -302,6 +322,84 @@ var NOTES_CSS = `
   pointer-events: none;
 }
 `;
+
+// src/ui/icons.ts
+var ICON_CLOSE = `<svg viewBox="0 0 24 24" width="18" height="18" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>`;
+var ICON_GLASS = `<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 32 32"><g fill="currentColor"><path d="M16 27.15c3.733 0 6.76-4.867 6.76-10.87S19.733 5.41 16 5.41s-6.76 4.867-6.76 10.87S12.267 27.15 16 27.15m5.76-10.87c0 2.845-.72 5.373-1.83 7.158c-1.118 1.8-2.535 2.712-3.93 2.712s-2.812-.912-3.93-2.712a11 11 0 0 1-1.024-2.172l9.85-10.134c.543 1.49.864 3.249.864 5.148"/><path d="M16 1a5.67 5.67 0 0 0-4.719 2.525l-1.024 1.536a3 3 0 0 1-1.154 1.02l-1.583.79a5 5 0 0 0-2.303 6.568l.601 1.304a3 3 0 0 1 0 2.514l-.601 1.304a5 5 0 0 0 2.303 6.567l1.583.791a3 3 0 0 1 1.154 1.02l1.024 1.536a5.67 5.67 0 0 0 9.438 0l1.024-1.536a3 3 0 0 1 1.154-1.02l1.583-.79a5 5 0 0 0 2.303-6.568l-.602-1.304a3 3 0 0 1 0-2.514l.602-1.304a5 5 0 0 0-2.303-6.567l-1.583-.791a3 3 0 0 1-1.154-1.02l-1.024-1.536A5.67 5.67 0 0 0 15.999 1m-3.055 3.635a3.67 3.67 0 0 1 6.11 0l1.024 1.536a5 5 0 0 0 1.924 1.698l1.582.792a3 3 0 0 1 1.382 3.94l-.601 1.304a5 5 0 0 0 0 4.19l.601 1.304a3 3 0 0 1-1.382 3.94l-1.582.792a5 5 0 0 0-1.924 1.698l-1.024 1.536a3.67 3.67 0 0 1-6.11 0l-1.024-1.536a5 5 0 0 0-1.924-1.698l-1.582-.792a3 3 0 0 1-1.382-3.94l.601-1.304a5 5 0 0 0 0-4.19l-.6-1.305a3 3 0 0 1 1.382-3.94l1.582-.792a5 5 0 0 0 1.924-1.698z"/></g></svg>`;
+var ICON_EMPTY = `<svg viewBox="0 0 24 24" fill="currentColor"><path d="M14 2H6c-1.1 0-1.99.9-1.99 2L4 20c0 1.1.89 2 1.99 2H18c1.1 0 2-.9 2-2V8l-6-6zm2 16H8v-2h8v2zm0-4H8v-2h8v2zm-3-5V3.5L18.5 9H13z"/></svg>`;
+
+// src/ui/settings.ts
+var SETTINGS_KEY = "looking-glass-settings";
+function loadSettings() {
+  let stored = {};
+  try {
+    stored = JSON.parse(localStorage.getItem(SETTINGS_KEY) || "{}") ?? {};
+  } catch {
+    stored = {};
+  }
+  return {
+    renderMode: stored.renderMode === "global" ? "global" : "widget",
+    alwaysInject: stored.alwaysInject === true
+  };
+}
+function createSettingsUI(onChanged) {
+  const settings = loadSettings();
+  const root = document.createElement("section");
+  root.className = "lg-settings-card";
+  root.style.cssText = `
+    background: var(--lumiverse-bg-elevated);
+    border: 1px solid var(--lumiverse-border);
+    border-radius: 12px;
+    padding: 16px;
+    margin-bottom: 16px;
+  `;
+  const header = document.createElement("header");
+  header.style.marginBottom = "16px";
+  header.innerHTML = `<h3 style="margin:0; color:var(--lumiverse-accent);">Looking Glass</h3>`;
+  const body = document.createElement("div");
+  const modeItem = document.createElement("div");
+  modeItem.style.marginBottom = "16px";
+  modeItem.innerHTML = `
+    <label style="display:block; font-weight:600; margin-bottom:4px;">Style Rendering Mode</label>
+    <select id="lg-mode-select" style="width:100%; padding:8px; border-radius:6px; background:var(--lumiverse-fill-subtle); color:inherit; border:1px solid var(--lumiverse-border);">
+      <option value="widget" ${settings.renderMode === "widget" ? "selected" : ""}>Widget Only (Isolated)</option>
+      <option value="global" ${settings.renderMode === "global" ? "selected" : ""}>Global (Entire App)</option>
+    </select>
+    <p style="font-size:0.8em; opacity:0.6; margin-top:4px;">Widget Only keeps everything the notes contain (styles, backgrounds, effects like rain) inside the Looking Glass widget. Global lets the notes re-theme the entire Lumiverse interface.</p>
+  `;
+  const alwaysItem = document.createElement("div");
+  alwaysItem.id = "lg-always-container";
+  alwaysItem.style.opacity = settings.renderMode === "widget" ? "0.5" : "1";
+  alwaysItem.innerHTML = `
+    <label style="display:flex; align-items:center; gap:8px; cursor:pointer;">
+      <input type="checkbox" id="lg-always-check" ${settings.alwaysInject ? "checked" : ""} ${settings.renderMode === "widget" ? "disabled" : ""}>
+      <span>Always Apply Global Styles</span>
+    </label>
+    <p style="font-size:0.8em; opacity:0.6; margin-top:4px;">Keep the notes' global styling and ambient effects active even when the Looking Glass widget is closed.</p>
+  `;
+  body.appendChild(modeItem);
+  body.appendChild(alwaysItem);
+  root.appendChild(header);
+  root.appendChild(body);
+  const modeSelect = modeItem.querySelector("#lg-mode-select");
+  const alwaysCheck = alwaysItem.querySelector("#lg-always-check");
+  function update() {
+    settings.renderMode = modeSelect.value === "global" ? "global" : "widget";
+    settings.alwaysInject = alwaysCheck.checked;
+    alwaysItem.style.opacity = settings.renderMode === "widget" ? "0.5" : "1";
+    alwaysCheck.disabled = settings.renderMode === "widget";
+    localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings));
+    onChanged({ ...settings });
+  }
+  modeSelect.addEventListener("change", update);
+  alwaysCheck.addEventListener("change", update);
+  return {
+    root,
+    destroy() {
+      root.remove();
+    }
+  };
+}
 
 // node_modules/marked/lib/marked.esm.js
 function z() {
@@ -1629,42 +1727,2626 @@ var Wt = g.parseInline;
 var Jt = b.parse;
 var Vt = x.lex;
 
+// node_modules/dompurify/dist/purify.es.mjs
+/*! @license DOMPurify 3.4.16 | (c) Cure53 and other contributors | Released under the Apache license 2.0 and Mozilla Public License 2.0 | github.com/cure53/DOMPurify/blob/3.4.16/LICENSE */
+function _OverloadYield(e, d) {
+  this.v = e, this.k = d;
+}
+function _arrayLikeToArray(r, a) {
+  (a == null || a > r.length) && (a = r.length);
+  for (var e = 0, n = Array(a);e < a; e++)
+    n[e] = r[e];
+  return n;
+}
+function _arrayWithHoles(r) {
+  if (Array.isArray(r))
+    return r;
+}
+function _iterableToArrayLimit(r, l) {
+  var t = r == null ? null : typeof Symbol != "undefined" && r[Symbol.iterator] || r["@@iterator"];
+  if (t != null) {
+    var e, n, i, u, a = [], f = true, o = false;
+    try {
+      if (i = (t = t.call(r)).next, l === 0) {
+        if (Object(t) !== t)
+          return;
+        f = false;
+      } else
+        for (;!(f = (e = i.call(t)).done) && (a.push(e.value), a.length !== l); f = true)
+          ;
+    } catch (r) {
+      o = true, n = r;
+    } finally {
+      try {
+        if (!f && t.return != null && (u = t.return(), Object(u) !== u))
+          return;
+      } finally {
+        if (o)
+          throw n;
+      }
+    }
+    return a;
+  }
+}
+function _nonIterableRest() {
+  throw new TypeError(`Invalid attempt to destructure non-iterable instance.
+In order to be iterable, non-array objects must have a [Symbol.iterator]() method.`);
+}
+/*! regenerator-runtime -- Copyright (c) 2014-present, Facebook, Inc. -- license (MIT): https://github.com/babel/babel/blob/main/packages/babel-helpers/LICENSE */
+function _slicedToArray(r, e) {
+  return _arrayWithHoles(r) || _iterableToArrayLimit(r, e) || _unsupportedIterableToArray(r, e) || _nonIterableRest();
+}
+function _unsupportedIterableToArray(r, a) {
+  if (r) {
+    if (typeof r == "string")
+      return _arrayLikeToArray(r, a);
+    var t = {}.toString.call(r).slice(8, -1);
+    return t === "Object" && r.constructor && (t = r.constructor.name), t === "Map" || t === "Set" ? Array.from(r) : t === "Arguments" || /^(?:Ui|I)nt(?:8|16|32)(?:Clamped)?Array$/.test(t) ? _arrayLikeToArray(r, a) : undefined;
+  }
+}
+function AsyncGenerator(e) {
+  var t, n;
+  function resume(t, n) {
+    try {
+      var r = e[t](n), o = r.value, u = o instanceof _OverloadYield;
+      Promise.resolve(u ? o.v : o).then(function(n) {
+        if (u) {
+          var i = t === "return" && o.k ? t : "next";
+          if (!o.k || n.done)
+            return resume(i, n);
+          n = e[i](n).value;
+        }
+        settle(!!r.done, n);
+      }, function(e) {
+        resume("throw", e);
+      });
+    } catch (e) {
+      settle(2, e);
+    }
+  }
+  function settle(e, r) {
+    e === 2 ? t.reject(r) : t.resolve({
+      value: r,
+      done: e
+    }), (t = t.next) ? resume(t.key, t.arg) : n = null;
+  }
+  this._invoke = function(e, r) {
+    return new Promise(function(o, u) {
+      var i = {
+        key: e,
+        arg: r,
+        resolve: o,
+        reject: u,
+        next: null
+      };
+      n ? n = n.next = i : (t = n = i, resume(e, r));
+    });
+  }, typeof e.return != "function" && (this.return = undefined);
+}
+AsyncGenerator.prototype[typeof Symbol == "function" && Symbol.asyncIterator || "@@asyncIterator"] = function() {
+  return this;
+}, AsyncGenerator.prototype.next = function(e) {
+  return this._invoke("next", e);
+}, AsyncGenerator.prototype.throw = function(e) {
+  return this._invoke("throw", e);
+}, AsyncGenerator.prototype.return = function(e) {
+  return this._invoke("return", e);
+};
+var entries = Object.entries;
+var setPrototypeOf = Object.setPrototypeOf;
+var isFrozen = Object.isFrozen;
+var getPrototypeOf = Object.getPrototypeOf;
+var getOwnPropertyDescriptor = Object.getOwnPropertyDescriptor;
+var freeze = Object.freeze;
+var seal = Object.seal;
+var create = Object.create;
+var _ref = typeof Reflect !== "undefined" && Reflect;
+var apply = _ref.apply;
+var construct = _ref.construct;
+if (!freeze)
+  freeze = function freeze(x) {
+    return x;
+  };
+if (!seal)
+  seal = function seal(x) {
+    return x;
+  };
+if (!apply)
+  apply = function apply(func, thisArg) {
+    for (var _len = arguments.length, args = new Array(_len > 2 ? _len - 2 : 0), _key = 2;_key < _len; _key++)
+      args[_key - 2] = arguments[_key];
+    return func.apply(thisArg, args);
+  };
+if (!construct)
+  construct = function construct(Func) {
+    for (var _len2 = arguments.length, args = new Array(_len2 > 1 ? _len2 - 1 : 0), _key2 = 1;_key2 < _len2; _key2++)
+      args[_key2 - 1] = arguments[_key2];
+    return new Func(...args);
+  };
+var arrayForEach = unapply(Array.prototype.forEach);
+Array.prototype.indexOf;
+var arrayLastIndexOf = unapply(Array.prototype.lastIndexOf);
+var arrayPop = unapply(Array.prototype.pop);
+var arrayPush = unapply(Array.prototype.push);
+Array.prototype.slice;
+var arraySplice = unapply(Array.prototype.splice);
+var arrayIsArray = Array.isArray;
+var stringToLowerCase = unapply(String.prototype.toLowerCase);
+var stringToString = unapply(String.prototype.toString);
+var stringMatch = unapply(String.prototype.match);
+var stringReplace = unapply(String.prototype.replace);
+var stringIndexOf = unapply(String.prototype.indexOf);
+var stringTrim = unapply(String.prototype.trim);
+var numberToString = unapply(Number.prototype.toString);
+var booleanToString = unapply(Boolean.prototype.toString);
+var bigintToString = typeof BigInt === "undefined" ? null : unapply(BigInt.prototype.toString);
+var symbolToString = typeof Symbol === "undefined" ? null : unapply(Symbol.prototype.toString);
+var objectHasOwnProperty = unapply(Object.prototype.hasOwnProperty);
+var objectToString = unapply(Object.prototype.toString);
+var regExpTest = unapply(RegExp.prototype.test);
+var typeErrorCreate = unconstruct(TypeError);
+function unapply(func) {
+  return function(thisArg) {
+    if (thisArg instanceof RegExp)
+      thisArg.lastIndex = 0;
+    for (var _len3 = arguments.length, args = new Array(_len3 > 1 ? _len3 - 1 : 0), _key3 = 1;_key3 < _len3; _key3++)
+      args[_key3 - 1] = arguments[_key3];
+    return apply(func, thisArg, args);
+  };
+}
+function unconstruct(Func) {
+  return function() {
+    for (var _len4 = arguments.length, args = new Array(_len4), _key4 = 0;_key4 < _len4; _key4++)
+      args[_key4] = arguments[_key4];
+    return construct(Func, args);
+  };
+}
+function addToSet(set, array) {
+  let transformCaseFunc = arguments.length > 2 && arguments[2] !== undefined ? arguments[2] : stringToLowerCase;
+  if (setPrototypeOf)
+    setPrototypeOf(set, null);
+  if (!arrayIsArray(array))
+    return set;
+  let l = array.length;
+  while (l--) {
+    let element = array[l];
+    if (typeof element === "string") {
+      const lcElement = transformCaseFunc(element);
+      if (lcElement !== element) {
+        if (!isFrozen(array))
+          array[l] = lcElement;
+        element = lcElement;
+      }
+    }
+    set[element] = true;
+  }
+  return set;
+}
+function cleanArray(array) {
+  for (let index = 0;index < array.length; index++)
+    if (!objectHasOwnProperty(array, index))
+      array[index] = null;
+  return array;
+}
+function clone(object) {
+  const newObject = create(null);
+  for (const _ref2 of entries(object)) {
+    var _ref3 = _slicedToArray(_ref2, 2);
+    const property = _ref3[0];
+    const value = _ref3[1];
+    if (objectHasOwnProperty(object, property)) {
+      if (arrayIsArray(value))
+        newObject[property] = cleanArray(value);
+      else if (value && typeof value === "object" && value.constructor === Object)
+        newObject[property] = clone(value);
+      else
+        newObject[property] = value;
+    }
+  }
+  return newObject;
+}
+function stringifyValue(value) {
+  switch (typeof value) {
+    case "string":
+      return value;
+    case "number":
+      return numberToString(value);
+    case "boolean":
+      return booleanToString(value);
+    case "bigint":
+      return bigintToString ? bigintToString(value) : "0";
+    case "symbol":
+      return symbolToString ? symbolToString(value) : "Symbol()";
+    case "undefined":
+      return objectToString(value);
+    case "function":
+    case "object": {
+      if (value === null)
+        return objectToString(value);
+      const valueAsRecord = value;
+      const valueToString = lookupGetter(valueAsRecord, "toString");
+      if (typeof valueToString === "function") {
+        const stringified = valueToString(valueAsRecord);
+        return typeof stringified === "string" ? stringified : objectToString(stringified);
+      }
+      return objectToString(value);
+    }
+    default:
+      return objectToString(value);
+  }
+}
+function lookupGetter(object, prop) {
+  while (object !== null) {
+    const desc = getOwnPropertyDescriptor(object, prop);
+    if (desc) {
+      if (desc.get)
+        return unapply(desc.get);
+      if (typeof desc.value === "function")
+        return unapply(desc.value);
+    }
+    object = getPrototypeOf(object);
+  }
+  function fallbackValue() {
+    return null;
+  }
+  return fallbackValue;
+}
+function isRegex(value) {
+  try {
+    regExpTest(value, "");
+    return true;
+  } catch (_unused) {
+    return false;
+  }
+}
+var html$1 = freeze([
+  "a",
+  "abbr",
+  "acronym",
+  "address",
+  "area",
+  "article",
+  "aside",
+  "audio",
+  "b",
+  "bdi",
+  "bdo",
+  "big",
+  "blink",
+  "blockquote",
+  "body",
+  "br",
+  "button",
+  "canvas",
+  "caption",
+  "center",
+  "cite",
+  "code",
+  "col",
+  "colgroup",
+  "content",
+  "data",
+  "datalist",
+  "dd",
+  "decorator",
+  "del",
+  "details",
+  "dfn",
+  "dialog",
+  "dir",
+  "div",
+  "dl",
+  "dt",
+  "element",
+  "em",
+  "fieldset",
+  "figcaption",
+  "figure",
+  "font",
+  "footer",
+  "form",
+  "h1",
+  "h2",
+  "h3",
+  "h4",
+  "h5",
+  "h6",
+  "head",
+  "header",
+  "hgroup",
+  "hr",
+  "html",
+  "i",
+  "img",
+  "input",
+  "ins",
+  "kbd",
+  "label",
+  "legend",
+  "li",
+  "main",
+  "map",
+  "mark",
+  "marquee",
+  "menu",
+  "menuitem",
+  "meter",
+  "nav",
+  "nobr",
+  "ol",
+  "optgroup",
+  "option",
+  "output",
+  "p",
+  "picture",
+  "pre",
+  "progress",
+  "q",
+  "rp",
+  "rt",
+  "ruby",
+  "s",
+  "samp",
+  "search",
+  "section",
+  "select",
+  "shadow",
+  "slot",
+  "small",
+  "source",
+  "spacer",
+  "span",
+  "strike",
+  "strong",
+  "style",
+  "sub",
+  "summary",
+  "sup",
+  "table",
+  "tbody",
+  "td",
+  "template",
+  "textarea",
+  "tfoot",
+  "th",
+  "thead",
+  "time",
+  "tr",
+  "track",
+  "tt",
+  "u",
+  "ul",
+  "var",
+  "video",
+  "wbr"
+]);
+var svg$1 = freeze([
+  "svg",
+  "a",
+  "altglyph",
+  "altglyphdef",
+  "altglyphitem",
+  "animatecolor",
+  "animatemotion",
+  "animatetransform",
+  "circle",
+  "clippath",
+  "defs",
+  "desc",
+  "ellipse",
+  "enterkeyhint",
+  "exportparts",
+  "filter",
+  "font",
+  "g",
+  "glyph",
+  "glyphref",
+  "hkern",
+  "image",
+  "inputmode",
+  "line",
+  "lineargradient",
+  "marker",
+  "mask",
+  "metadata",
+  "mpath",
+  "part",
+  "path",
+  "pattern",
+  "polygon",
+  "polyline",
+  "radialgradient",
+  "rect",
+  "stop",
+  "style",
+  "switch",
+  "symbol",
+  "text",
+  "textpath",
+  "title",
+  "tref",
+  "tspan",
+  "view",
+  "vkern"
+]);
+var svgFilters = freeze([
+  "feBlend",
+  "feColorMatrix",
+  "feComponentTransfer",
+  "feComposite",
+  "feConvolveMatrix",
+  "feDiffuseLighting",
+  "feDisplacementMap",
+  "feDistantLight",
+  "feDropShadow",
+  "feFlood",
+  "feFuncA",
+  "feFuncB",
+  "feFuncG",
+  "feFuncR",
+  "feGaussianBlur",
+  "feImage",
+  "feMerge",
+  "feMergeNode",
+  "feMorphology",
+  "feOffset",
+  "fePointLight",
+  "feSpecularLighting",
+  "feSpotLight",
+  "feTile",
+  "feTurbulence"
+]);
+var svgDisallowed = freeze([
+  "animate",
+  "color-profile",
+  "cursor",
+  "discard",
+  "font-face",
+  "font-face-format",
+  "font-face-name",
+  "font-face-src",
+  "font-face-uri",
+  "foreignobject",
+  "hatch",
+  "hatchpath",
+  "mesh",
+  "meshgradient",
+  "meshpatch",
+  "meshrow",
+  "missing-glyph",
+  "script",
+  "set",
+  "solidcolor",
+  "unknown",
+  "use"
+]);
+var mathMl$1 = freeze([
+  "math",
+  "menclose",
+  "merror",
+  "mfenced",
+  "mfrac",
+  "mglyph",
+  "mi",
+  "mlabeledtr",
+  "mmultiscripts",
+  "mn",
+  "mo",
+  "mover",
+  "mpadded",
+  "mphantom",
+  "mroot",
+  "mrow",
+  "ms",
+  "mspace",
+  "msqrt",
+  "mstyle",
+  "msub",
+  "msup",
+  "msubsup",
+  "mtable",
+  "mtd",
+  "mtext",
+  "mtr",
+  "munder",
+  "munderover",
+  "mprescripts"
+]);
+var mathMlDisallowed = freeze([
+  "maction",
+  "maligngroup",
+  "malignmark",
+  "mlongdiv",
+  "mscarries",
+  "mscarry",
+  "msgroup",
+  "mstack",
+  "msline",
+  "msrow",
+  "semantics",
+  "annotation",
+  "annotation-xml",
+  "mprescripts",
+  "none"
+]);
+var text = freeze(["#text"]);
+var html = freeze([
+  "accept",
+  "action",
+  "align",
+  "alt",
+  "autocapitalize",
+  "autocomplete",
+  "autopictureinpicture",
+  "autoplay",
+  "background",
+  "bgcolor",
+  "border",
+  "capture",
+  "cellpadding",
+  "cellspacing",
+  "checked",
+  "cite",
+  "class",
+  "clear",
+  "color",
+  "cols",
+  "colspan",
+  "command",
+  "commandfor",
+  "controls",
+  "controlslist",
+  "coords",
+  "crossorigin",
+  "datetime",
+  "decoding",
+  "default",
+  "dir",
+  "disabled",
+  "disablepictureinpicture",
+  "disableremoteplayback",
+  "download",
+  "draggable",
+  "enctype",
+  "enterkeyhint",
+  "exportparts",
+  "face",
+  "for",
+  "headers",
+  "height",
+  "hidden",
+  "high",
+  "href",
+  "hreflang",
+  "id",
+  "inert",
+  "inputmode",
+  "integrity",
+  "ismap",
+  "kind",
+  "label",
+  "lang",
+  "list",
+  "loading",
+  "loop",
+  "low",
+  "max",
+  "maxlength",
+  "media",
+  "method",
+  "min",
+  "minlength",
+  "multiple",
+  "muted",
+  "name",
+  "nonce",
+  "noshade",
+  "novalidate",
+  "nowrap",
+  "open",
+  "optimum",
+  "part",
+  "pattern",
+  "placeholder",
+  "playsinline",
+  "popover",
+  "popovertarget",
+  "popovertargetaction",
+  "poster",
+  "preload",
+  "pubdate",
+  "radiogroup",
+  "readonly",
+  "rel",
+  "required",
+  "rev",
+  "reversed",
+  "role",
+  "rows",
+  "rowspan",
+  "spellcheck",
+  "scope",
+  "selected",
+  "shape",
+  "size",
+  "sizes",
+  "slot",
+  "span",
+  "srclang",
+  "start",
+  "src",
+  "srcset",
+  "step",
+  "style",
+  "summary",
+  "tabindex",
+  "title",
+  "translate",
+  "type",
+  "usemap",
+  "valign",
+  "value",
+  "width",
+  "wrap",
+  "xmlns"
+]);
+var svg = freeze([
+  "accent-height",
+  "accumulate",
+  "additive",
+  "alignment-baseline",
+  "amplitude",
+  "ascent",
+  "attributename",
+  "attributetype",
+  "azimuth",
+  "basefrequency",
+  "baseline-shift",
+  "begin",
+  "bias",
+  "by",
+  "class",
+  "clip",
+  "clippathunits",
+  "clip-path",
+  "clip-rule",
+  "color",
+  "color-interpolation",
+  "color-interpolation-filters",
+  "color-profile",
+  "color-rendering",
+  "cx",
+  "cy",
+  "d",
+  "dx",
+  "dy",
+  "diffuseconstant",
+  "direction",
+  "display",
+  "divisor",
+  "dominant-baseline",
+  "dur",
+  "edgemode",
+  "elevation",
+  "end",
+  "exponent",
+  "fill",
+  "fill-opacity",
+  "fill-rule",
+  "filter",
+  "filterunits",
+  "flood-color",
+  "flood-opacity",
+  "font-family",
+  "font-size",
+  "font-size-adjust",
+  "font-stretch",
+  "font-style",
+  "font-variant",
+  "font-weight",
+  "fx",
+  "fy",
+  "g1",
+  "g2",
+  "glyph-name",
+  "glyphref",
+  "gradientunits",
+  "gradienttransform",
+  "height",
+  "href",
+  "id",
+  "image-rendering",
+  "in",
+  "in2",
+  "intercept",
+  "k",
+  "k1",
+  "k2",
+  "k3",
+  "k4",
+  "kerning",
+  "keypoints",
+  "keysplines",
+  "keytimes",
+  "lang",
+  "lengthadjust",
+  "letter-spacing",
+  "kernelmatrix",
+  "kernelunitlength",
+  "lighting-color",
+  "local",
+  "marker-end",
+  "marker-mid",
+  "marker-start",
+  "markerheight",
+  "markerunits",
+  "markerwidth",
+  "maskcontentunits",
+  "maskunits",
+  "max",
+  "mask",
+  "mask-type",
+  "media",
+  "method",
+  "mode",
+  "min",
+  "name",
+  "numoctaves",
+  "offset",
+  "operator",
+  "opacity",
+  "order",
+  "orient",
+  "orientation",
+  "origin",
+  "overflow",
+  "paint-order",
+  "path",
+  "pathlength",
+  "patterncontentunits",
+  "patterntransform",
+  "patternunits",
+  "pointer-events",
+  "points",
+  "preservealpha",
+  "preserveaspectratio",
+  "primitiveunits",
+  "r",
+  "rx",
+  "ry",
+  "radius",
+  "refx",
+  "refy",
+  "repeatcount",
+  "repeatdur",
+  "restart",
+  "result",
+  "rotate",
+  "scale",
+  "seed",
+  "shape-rendering",
+  "slope",
+  "specularconstant",
+  "specularexponent",
+  "spreadmethod",
+  "startoffset",
+  "stddeviation",
+  "stitchtiles",
+  "stop-color",
+  "stop-opacity",
+  "stroke-dasharray",
+  "stroke-dashoffset",
+  "stroke-linecap",
+  "stroke-linejoin",
+  "stroke-miterlimit",
+  "stroke-opacity",
+  "stroke",
+  "stroke-width",
+  "style",
+  "surfacescale",
+  "systemlanguage",
+  "tabindex",
+  "tablevalues",
+  "targetx",
+  "targety",
+  "transform",
+  "transform-origin",
+  "text-anchor",
+  "text-decoration",
+  "text-orientation",
+  "text-rendering",
+  "textlength",
+  "type",
+  "u1",
+  "u2",
+  "unicode",
+  "values",
+  "vector-effect",
+  "viewbox",
+  "visibility",
+  "version",
+  "vert-adv-y",
+  "vert-origin-x",
+  "vert-origin-y",
+  "width",
+  "word-spacing",
+  "wrap",
+  "writing-mode",
+  "xchannelselector",
+  "ychannelselector",
+  "x",
+  "x1",
+  "x2",
+  "xmlns",
+  "y",
+  "y1",
+  "y2",
+  "z",
+  "zoomandpan"
+]);
+var mathMl = freeze([
+  "accent",
+  "accentunder",
+  "align",
+  "bevelled",
+  "close",
+  "columnalign",
+  "columnlines",
+  "columnspacing",
+  "columnspan",
+  "denomalign",
+  "depth",
+  "dir",
+  "display",
+  "displaystyle",
+  "encoding",
+  "fence",
+  "frame",
+  "height",
+  "href",
+  "id",
+  "largeop",
+  "length",
+  "linethickness",
+  "lquote",
+  "lspace",
+  "mathbackground",
+  "mathcolor",
+  "mathsize",
+  "mathvariant",
+  "maxsize",
+  "minsize",
+  "movablelimits",
+  "notation",
+  "numalign",
+  "open",
+  "rowalign",
+  "rowlines",
+  "rowspacing",
+  "rowspan",
+  "rspace",
+  "rquote",
+  "scriptlevel",
+  "scriptminsize",
+  "scriptsizemultiplier",
+  "selection",
+  "separator",
+  "separators",
+  "stretchy",
+  "subscriptshift",
+  "supscriptshift",
+  "symmetric",
+  "voffset",
+  "width",
+  "xmlns"
+]);
+var xml = freeze([
+  "xlink:href",
+  "xml:id",
+  "xlink:title",
+  "xml:space",
+  "xmlns:xlink"
+]);
+var MUSTACHE_EXPR = seal(/{{[\w\W]*|^[\w\W]*}}/g);
+var ERB_EXPR = seal(/<%[\w\W]*|^[\w\W]*%>/g);
+var TMPLIT_EXPR = seal(/\${[\w\W]*/g);
+var DATA_ATTR = seal(/^data-[\-\w.\u00B7-\uFFFF]+$/);
+var ARIA_ATTR = seal(/^aria-[\-\w]+$/);
+var IS_ALLOWED_URI = seal(/^(?:(?:(?:f|ht)tps?|mailto|tel|callto|sms|cid|xmpp|matrix):|[^a-z]|[a-z+.\-]+(?:[^a-z+.\-:]|$))/i);
+var IS_SCRIPT_OR_DATA = seal(/^(?:\w+script|data):/i);
+var ATTR_WHITESPACE = seal(/[\u0000-\u0020\u00A0\u1680\u180E\u2000-\u2029\u205F\u3000]/g);
+var DOCTYPE_NAME = seal(/^html$/i);
+var CUSTOM_ELEMENT = seal(/^[a-z][.\w]*(-[.\w]+)+$/i);
+var ELEMENT_MARKUP_PROBE = seal(/<[/\w!]/g);
+var COMMENT_MARKUP_PROBE = seal(/<[/\w]/g);
+var FALLBACK_TAG_CLOSE = seal(/<\/no(script|embed|frames)/i);
+var SELF_CLOSING_TAG = seal(/\/>/i);
+var NODE_TYPE = {
+  element: 1,
+  attribute: 2,
+  text: 3,
+  cdataSection: 4,
+  entityReference: 5,
+  entityNode: 6,
+  processingInstruction: 7,
+  comment: 8,
+  document: 9,
+  documentType: 10,
+  documentFragment: 11,
+  notation: 12
+};
+var LITERAL_TEXT_ELEMENT_NAMES = [
+  "style",
+  "script",
+  "xmp",
+  "iframe",
+  "noembed",
+  "noframes",
+  "plaintext",
+  "noscript"
+];
+var LITERAL_TEXT_ELEMENTS = freeze(addToSet({}, LITERAL_TEXT_ELEMENT_NAMES));
+var LITERAL_TEXT_CLOSE = function() {
+  const map = {};
+  arrayForEach(LITERAL_TEXT_ELEMENT_NAMES, (name) => {
+    map[name] = seal(new RegExp("</" + name + "(?=[\\t\\n\\f\\r />])", "i"));
+  });
+  return freeze(map);
+}();
+var getGlobal = function getGlobal() {
+  return typeof window === "undefined" ? null : window;
+};
+var _createTrustedTypesPolicy = function _createTrustedTypesPolicy(trustedTypes, purifyHostElement) {
+  if (typeof trustedTypes !== "object" || typeof trustedTypes.createPolicy !== "function")
+    return null;
+  let suffix = null;
+  const ATTR_NAME = "data-tt-policy-suffix";
+  if (purifyHostElement && purifyHostElement.hasAttribute(ATTR_NAME))
+    suffix = purifyHostElement.getAttribute(ATTR_NAME);
+  const policyName = "dompurify" + (suffix ? "#" + suffix : "");
+  try {
+    return trustedTypes.createPolicy(policyName, {
+      createHTML(html) {
+        return html;
+      },
+      createScriptURL(scriptUrl) {
+        return scriptUrl;
+      }
+    });
+  } catch (_) {
+    console.warn("TrustedTypes policy " + policyName + " could not be created.");
+    return null;
+  }
+};
+var _createHooksMap = function _createHooksMap() {
+  return {
+    afterSanitizeAttributes: [],
+    afterSanitizeElements: [],
+    afterSanitizeShadowDOM: [],
+    beforeSanitizeAttributes: [],
+    beforeSanitizeElements: [],
+    beforeSanitizeShadowDOM: [],
+    uponSanitizeAttribute: [],
+    uponSanitizeElement: [],
+    uponSanitizeShadowNode: []
+  };
+};
+var _resolveSetOption = function _resolveSetOption(cfg, key, fallback, options) {
+  return objectHasOwnProperty(cfg, key) && arrayIsArray(cfg[key]) ? addToSet(options.base ? clone(options.base) : {}, cfg[key], options.transform) : fallback;
+};
+var _resolveObjectOption = function _resolveObjectOption(cfg, key, makeFallback) {
+  const value = objectHasOwnProperty(cfg, key) ? cfg[key] : undefined;
+  return value && typeof value === "object" ? clone(value) : makeFallback();
+};
+function createDOMPurify() {
+  let window2 = arguments.length > 0 && arguments[0] !== undefined ? arguments[0] : getGlobal();
+  const DOMPurify = (root) => createDOMPurify(root);
+  DOMPurify.version = "3.4.16";
+  DOMPurify.removed = [];
+  if (!window2 || !window2.document || window2.document.nodeType !== NODE_TYPE.document || !window2.Element) {
+    DOMPurify.isSupported = false;
+    return DOMPurify;
+  }
+  let document2 = window2.document;
+  const originalDocument = document2;
+  const currentScript = originalDocument.currentScript;
+  window2.DocumentFragment;
+  const { HTMLTemplateElement, Node, Element, NodeFilter } = window2;
+  window2.NamedNodeMap === undefined && (window2.NamedNodeMap || window2.MozNamedAttrMap);
+  window2.HTMLFormElement;
+  const { DOMParser: DOMParser2, trustedTypes } = window2;
+  const ElementPrototype = Element.prototype;
+  const cloneNode = lookupGetter(ElementPrototype, "cloneNode");
+  const remove = lookupGetter(ElementPrototype, "remove");
+  const removeAttributeNode = lookupGetter(ElementPrototype, "removeAttributeNode");
+  const getNextSibling = lookupGetter(ElementPrototype, "nextSibling");
+  const getChildNodes = lookupGetter(ElementPrototype, "childNodes");
+  const getParentNode = lookupGetter(ElementPrototype, "parentNode");
+  const getShadowRoot = lookupGetter(ElementPrototype, "shadowRoot");
+  const getAttributes = lookupGetter(ElementPrototype, "attributes");
+  const getNodeType = Node && Node.prototype ? lookupGetter(Node.prototype, "nodeType") : null;
+  const getNodeName = Node && Node.prototype ? lookupGetter(Node.prototype, "nodeName") : null;
+  const getOwnerDocument = Node && Node.prototype ? lookupGetter(Node.prototype, "ownerDocument") : null;
+  const _readNodeType = function _readNodeType(node) {
+    return getNodeType ? getNodeType(node) : node.nodeType;
+  };
+  const _readNodeName = function _readNodeName(node) {
+    return getNodeName ? getNodeName(node) : node.nodeName;
+  };
+  if (typeof HTMLTemplateElement === "function") {
+    const template = document2.createElement("template");
+    if (template.content && template.content.ownerDocument)
+      document2 = template.content.ownerDocument;
+  }
+  let trustedTypesPolicy;
+  let emptyHTML = "";
+  let defaultTrustedTypesPolicy;
+  let defaultTrustedTypesPolicyResolved = false;
+  let IN_TRUSTED_TYPES_POLICY = 0;
+  const _assertNotInTrustedTypesPolicy = function _assertNotInTrustedTypesPolicy() {
+    if (IN_TRUSTED_TYPES_POLICY > 0)
+      throw typeErrorCreate('A configured TRUSTED_TYPES_POLICY callback (createHTML or createScriptURL) must not call DOMPurify.sanitize, as that causes infinite recursion. Do not pass a policy whose callbacks wrap DOMPurify as TRUSTED_TYPES_POLICY; see the "DOMPurify and Trusted Types" section of the README.');
+  };
+  const _createTrustedHTML = function _createTrustedHTML(html) {
+    _assertNotInTrustedTypesPolicy();
+    IN_TRUSTED_TYPES_POLICY++;
+    try {
+      return trustedTypesPolicy.createHTML(html);
+    } finally {
+      IN_TRUSTED_TYPES_POLICY--;
+    }
+  };
+  const _createTrustedScriptURL = function _createTrustedScriptURL(scriptUrl) {
+    _assertNotInTrustedTypesPolicy();
+    IN_TRUSTED_TYPES_POLICY++;
+    try {
+      return trustedTypesPolicy.createScriptURL(scriptUrl);
+    } finally {
+      IN_TRUSTED_TYPES_POLICY--;
+    }
+  };
+  const _getDefaultTrustedTypesPolicy = function _getDefaultTrustedTypesPolicy() {
+    if (!defaultTrustedTypesPolicyResolved) {
+      defaultTrustedTypesPolicy = _createTrustedTypesPolicy(trustedTypes, currentScript);
+      defaultTrustedTypesPolicyResolved = true;
+    }
+    return defaultTrustedTypesPolicy;
+  };
+  const _document = document2, { implementation, createNodeIterator, createDocumentFragment, getElementsByTagName } = _document;
+  const importNode = originalDocument.importNode;
+  let hooks = _createHooksMap();
+  DOMPurify.isSupported = typeof entries === "function" && typeof getParentNode === "function" && implementation && implementation.createHTMLDocument !== undefined;
+  const MUSTACHE_EXPR$1 = MUSTACHE_EXPR, ERB_EXPR$1 = ERB_EXPR, TMPLIT_EXPR$1 = TMPLIT_EXPR, DATA_ATTR$1 = DATA_ATTR, ARIA_ATTR$1 = ARIA_ATTR, IS_SCRIPT_OR_DATA$1 = IS_SCRIPT_OR_DATA, ATTR_WHITESPACE$1 = ATTR_WHITESPACE, CUSTOM_ELEMENT$1 = CUSTOM_ELEMENT;
+  let IS_ALLOWED_URI$1 = IS_ALLOWED_URI;
+  let ALLOWED_TAGS = null;
+  const DEFAULT_ALLOWED_TAGS = addToSet({}, [
+    ...html$1,
+    ...svg$1,
+    ...svgFilters,
+    ...mathMl$1,
+    ...text
+  ]);
+  let ALLOWED_ATTR = null;
+  const DEFAULT_ALLOWED_ATTR = addToSet({}, [
+    ...html,
+    ...svg,
+    ...mathMl,
+    ...xml
+  ]);
+  let CUSTOM_ELEMENT_HANDLING = Object.seal(create(null, {
+    tagNameCheck: {
+      writable: true,
+      configurable: false,
+      enumerable: true,
+      value: null
+    },
+    attributeNameCheck: {
+      writable: true,
+      configurable: false,
+      enumerable: true,
+      value: null
+    },
+    allowCustomizedBuiltInElements: {
+      writable: true,
+      configurable: false,
+      enumerable: true,
+      value: false
+    }
+  }));
+  let FORBID_TAGS = null;
+  let FORBID_ATTR = null;
+  const EXTRA_ELEMENT_HANDLING = Object.seal(create(null, {
+    tagCheck: {
+      writable: true,
+      configurable: false,
+      enumerable: true,
+      value: null
+    },
+    attributeCheck: {
+      writable: true,
+      configurable: false,
+      enumerable: true,
+      value: null
+    }
+  }));
+  let ALLOW_ARIA_ATTR = true;
+  let ALLOW_DATA_ATTR = true;
+  let ALLOW_UNKNOWN_PROTOCOLS = false;
+  let ALLOW_SELF_CLOSE_IN_ATTR = true;
+  let SAFE_FOR_TEMPLATES = false;
+  let SAFE_FOR_XML = true;
+  let WHOLE_DOCUMENT = false;
+  let SET_CONFIG = false;
+  let SET_CONFIG_ALLOWED_TAGS = null;
+  let SET_CONFIG_ALLOWED_ATTR = null;
+  let FORCE_BODY = false;
+  let RETURN_DOM = false;
+  let RETURN_DOM_FRAGMENT = false;
+  let RETURN_TRUSTED_TYPE = false;
+  let SANITIZE_DOM = true;
+  let SANITIZE_NAMED_PROPS = false;
+  const SANITIZE_NAMED_PROPS_PREFIX = "user-content-";
+  let KEEP_CONTENT = true;
+  let IN_PLACE = false;
+  let USE_PROFILES = {};
+  let FORBID_CONTENTS = null;
+  const DEFAULT_FORBID_CONTENTS = addToSet({}, [
+    "annotation-xml",
+    "audio",
+    "colgroup",
+    "desc",
+    "foreignobject",
+    "head",
+    "iframe",
+    "math",
+    "mi",
+    "mn",
+    "mo",
+    "ms",
+    "mtext",
+    "noembed",
+    "noframes",
+    "noscript",
+    "plaintext",
+    "script",
+    "selectedcontent",
+    "style",
+    "svg",
+    "template",
+    "thead",
+    "title",
+    "video",
+    "xmp"
+  ]);
+  let DATA_URI_TAGS = null;
+  const DEFAULT_DATA_URI_TAGS = addToSet({}, [
+    "audio",
+    "video",
+    "img",
+    "source",
+    "image",
+    "track"
+  ]);
+  let URI_SAFE_ATTRIBUTES = null;
+  const DEFAULT_URI_SAFE_ATTRIBUTES = addToSet({}, [
+    "alt",
+    "class",
+    "for",
+    "id",
+    "label",
+    "name",
+    "pattern",
+    "placeholder",
+    "role",
+    "summary",
+    "title",
+    "value",
+    "style",
+    "xmlns"
+  ]);
+  const MATHML_NAMESPACE = "http://www.w3.org/1998/Math/MathML";
+  const SVG_NAMESPACE = "http://www.w3.org/2000/svg";
+  const HTML_NAMESPACE = "http://www.w3.org/1999/xhtml";
+  let NAMESPACE = HTML_NAMESPACE;
+  let IS_EMPTY_INPUT = false;
+  let ALLOWED_NAMESPACES = null;
+  const DEFAULT_ALLOWED_NAMESPACES = addToSet({}, [
+    MATHML_NAMESPACE,
+    SVG_NAMESPACE,
+    HTML_NAMESPACE
+  ], stringToString);
+  const DEFAULT_MATHML_TEXT_INTEGRATION_POINTS = freeze([
+    "mi",
+    "mo",
+    "mn",
+    "ms",
+    "mtext"
+  ]);
+  let MATHML_TEXT_INTEGRATION_POINTS = addToSet({}, DEFAULT_MATHML_TEXT_INTEGRATION_POINTS);
+  const DEFAULT_HTML_INTEGRATION_POINTS = freeze(["annotation-xml"]);
+  let HTML_INTEGRATION_POINTS = addToSet({}, DEFAULT_HTML_INTEGRATION_POINTS);
+  const COMMON_SVG_AND_HTML_ELEMENTS = addToSet({}, [
+    "title",
+    "style",
+    "font",
+    "a",
+    "script"
+  ]);
+  let PARSER_MEDIA_TYPE = null;
+  const SUPPORTED_PARSER_MEDIA_TYPES = ["application/xhtml+xml", "text/html"];
+  const DEFAULT_PARSER_MEDIA_TYPE = "text/html";
+  let transformCaseFunc = null;
+  let CONFIG = null;
+  const formElement = document2.createElement("form");
+  const isRegexOrFunction = function isRegexOrFunction(testValue) {
+    return testValue instanceof RegExp || testValue instanceof Function;
+  };
+  const _parseConfig = function _parseConfig() {
+    let cfg = arguments.length > 0 && arguments[0] !== undefined ? arguments[0] : {};
+    if (CONFIG && CONFIG === cfg)
+      return;
+    if (!cfg || typeof cfg !== "object")
+      cfg = {};
+    cfg = clone(cfg);
+    PARSER_MEDIA_TYPE = SUPPORTED_PARSER_MEDIA_TYPES.indexOf(cfg.PARSER_MEDIA_TYPE) === -1 ? DEFAULT_PARSER_MEDIA_TYPE : cfg.PARSER_MEDIA_TYPE;
+    transformCaseFunc = PARSER_MEDIA_TYPE === "application/xhtml+xml" ? stringToString : stringToLowerCase;
+    ALLOWED_TAGS = _resolveSetOption(cfg, "ALLOWED_TAGS", DEFAULT_ALLOWED_TAGS, { transform: transformCaseFunc });
+    ALLOWED_ATTR = _resolveSetOption(cfg, "ALLOWED_ATTR", DEFAULT_ALLOWED_ATTR, { transform: transformCaseFunc });
+    ALLOWED_NAMESPACES = _resolveSetOption(cfg, "ALLOWED_NAMESPACES", DEFAULT_ALLOWED_NAMESPACES, { transform: stringToString });
+    URI_SAFE_ATTRIBUTES = _resolveSetOption(cfg, "ADD_URI_SAFE_ATTR", DEFAULT_URI_SAFE_ATTRIBUTES, {
+      transform: transformCaseFunc,
+      base: DEFAULT_URI_SAFE_ATTRIBUTES
+    });
+    DATA_URI_TAGS = _resolveSetOption(cfg, "ADD_DATA_URI_TAGS", DEFAULT_DATA_URI_TAGS, {
+      transform: transformCaseFunc,
+      base: DEFAULT_DATA_URI_TAGS
+    });
+    FORBID_CONTENTS = _resolveSetOption(cfg, "FORBID_CONTENTS", DEFAULT_FORBID_CONTENTS, { transform: transformCaseFunc });
+    FORBID_TAGS = _resolveSetOption(cfg, "FORBID_TAGS", clone({}), { transform: transformCaseFunc });
+    FORBID_ATTR = _resolveSetOption(cfg, "FORBID_ATTR", clone({}), { transform: transformCaseFunc });
+    USE_PROFILES = objectHasOwnProperty(cfg, "USE_PROFILES") ? cfg.USE_PROFILES && typeof cfg.USE_PROFILES === "object" ? clone(cfg.USE_PROFILES) : cfg.USE_PROFILES : false;
+    ALLOW_ARIA_ATTR = cfg.ALLOW_ARIA_ATTR !== false;
+    ALLOW_DATA_ATTR = cfg.ALLOW_DATA_ATTR !== false;
+    ALLOW_UNKNOWN_PROTOCOLS = cfg.ALLOW_UNKNOWN_PROTOCOLS || false;
+    ALLOW_SELF_CLOSE_IN_ATTR = cfg.ALLOW_SELF_CLOSE_IN_ATTR !== false;
+    SAFE_FOR_TEMPLATES = cfg.SAFE_FOR_TEMPLATES || false;
+    SAFE_FOR_XML = cfg.SAFE_FOR_XML !== false;
+    WHOLE_DOCUMENT = cfg.WHOLE_DOCUMENT || false;
+    RETURN_DOM = cfg.RETURN_DOM || false;
+    RETURN_DOM_FRAGMENT = cfg.RETURN_DOM_FRAGMENT || false;
+    RETURN_TRUSTED_TYPE = cfg.RETURN_TRUSTED_TYPE || false;
+    FORCE_BODY = cfg.FORCE_BODY || false;
+    SANITIZE_DOM = cfg.SANITIZE_DOM !== false;
+    SANITIZE_NAMED_PROPS = cfg.SANITIZE_NAMED_PROPS || false;
+    KEEP_CONTENT = cfg.KEEP_CONTENT !== false;
+    IN_PLACE = cfg.IN_PLACE || false;
+    IS_ALLOWED_URI$1 = isRegex(cfg.ALLOWED_URI_REGEXP) ? cfg.ALLOWED_URI_REGEXP : IS_ALLOWED_URI;
+    NAMESPACE = typeof cfg.NAMESPACE === "string" ? cfg.NAMESPACE : HTML_NAMESPACE;
+    MATHML_TEXT_INTEGRATION_POINTS = _resolveObjectOption(cfg, "MATHML_TEXT_INTEGRATION_POINTS", () => addToSet({}, DEFAULT_MATHML_TEXT_INTEGRATION_POINTS));
+    HTML_INTEGRATION_POINTS = _resolveObjectOption(cfg, "HTML_INTEGRATION_POINTS", () => addToSet({}, DEFAULT_HTML_INTEGRATION_POINTS));
+    const customElementHandling = _resolveObjectOption(cfg, "CUSTOM_ELEMENT_HANDLING", () => create(null));
+    CUSTOM_ELEMENT_HANDLING = create(null);
+    if (objectHasOwnProperty(customElementHandling, "tagNameCheck") && isRegexOrFunction(customElementHandling.tagNameCheck))
+      CUSTOM_ELEMENT_HANDLING.tagNameCheck = customElementHandling.tagNameCheck;
+    if (objectHasOwnProperty(customElementHandling, "attributeNameCheck") && isRegexOrFunction(customElementHandling.attributeNameCheck))
+      CUSTOM_ELEMENT_HANDLING.attributeNameCheck = customElementHandling.attributeNameCheck;
+    if (objectHasOwnProperty(customElementHandling, "allowCustomizedBuiltInElements") && typeof customElementHandling.allowCustomizedBuiltInElements === "boolean")
+      CUSTOM_ELEMENT_HANDLING.allowCustomizedBuiltInElements = customElementHandling.allowCustomizedBuiltInElements;
+    seal(CUSTOM_ELEMENT_HANDLING);
+    if (SAFE_FOR_TEMPLATES)
+      ALLOW_DATA_ATTR = false;
+    if (RETURN_DOM_FRAGMENT)
+      RETURN_DOM = true;
+    if (USE_PROFILES) {
+      ALLOWED_TAGS = addToSet({}, text);
+      ALLOWED_ATTR = create(null);
+      if (USE_PROFILES.html === true) {
+        addToSet(ALLOWED_TAGS, html$1);
+        addToSet(ALLOWED_ATTR, html);
+      }
+      if (USE_PROFILES.svg === true) {
+        addToSet(ALLOWED_TAGS, svg$1);
+        addToSet(ALLOWED_ATTR, svg);
+        addToSet(ALLOWED_ATTR, xml);
+      }
+      if (USE_PROFILES.svgFilters === true) {
+        addToSet(ALLOWED_TAGS, svgFilters);
+        addToSet(ALLOWED_ATTR, svg);
+        addToSet(ALLOWED_ATTR, xml);
+      }
+      if (USE_PROFILES.mathMl === true) {
+        addToSet(ALLOWED_TAGS, mathMl$1);
+        addToSet(ALLOWED_ATTR, mathMl);
+        addToSet(ALLOWED_ATTR, xml);
+      }
+    }
+    EXTRA_ELEMENT_HANDLING.tagCheck = null;
+    EXTRA_ELEMENT_HANDLING.attributeCheck = null;
+    if (objectHasOwnProperty(cfg, "ADD_TAGS")) {
+      if (typeof cfg.ADD_TAGS === "function")
+        EXTRA_ELEMENT_HANDLING.tagCheck = cfg.ADD_TAGS;
+      else if (arrayIsArray(cfg.ADD_TAGS)) {
+        if (ALLOWED_TAGS === DEFAULT_ALLOWED_TAGS)
+          ALLOWED_TAGS = clone(ALLOWED_TAGS);
+        addToSet(ALLOWED_TAGS, cfg.ADD_TAGS, transformCaseFunc);
+      }
+    }
+    if (objectHasOwnProperty(cfg, "ADD_ATTR")) {
+      if (typeof cfg.ADD_ATTR === "function")
+        EXTRA_ELEMENT_HANDLING.attributeCheck = cfg.ADD_ATTR;
+      else if (arrayIsArray(cfg.ADD_ATTR)) {
+        if (ALLOWED_ATTR === DEFAULT_ALLOWED_ATTR)
+          ALLOWED_ATTR = clone(ALLOWED_ATTR);
+        addToSet(ALLOWED_ATTR, cfg.ADD_ATTR, transformCaseFunc);
+      }
+    }
+    if (objectHasOwnProperty(cfg, "ADD_FORBID_CONTENTS") && arrayIsArray(cfg.ADD_FORBID_CONTENTS)) {
+      if (FORBID_CONTENTS === DEFAULT_FORBID_CONTENTS)
+        FORBID_CONTENTS = clone(FORBID_CONTENTS);
+      addToSet(FORBID_CONTENTS, cfg.ADD_FORBID_CONTENTS, transformCaseFunc);
+    }
+    if (KEEP_CONTENT)
+      ALLOWED_TAGS["#text"] = true;
+    if (WHOLE_DOCUMENT)
+      addToSet(ALLOWED_TAGS, [
+        "html",
+        "head",
+        "body"
+      ]);
+    if (ALLOWED_TAGS.table) {
+      addToSet(ALLOWED_TAGS, ["tbody"]);
+      delete FORBID_TAGS.tbody;
+    }
+    if (cfg.TRUSTED_TYPES_POLICY) {
+      if (typeof cfg.TRUSTED_TYPES_POLICY.createHTML !== "function")
+        throw typeErrorCreate('TRUSTED_TYPES_POLICY configuration option must provide a "createHTML" hook.');
+      if (typeof cfg.TRUSTED_TYPES_POLICY.createScriptURL !== "function")
+        throw typeErrorCreate('TRUSTED_TYPES_POLICY configuration option must provide a "createScriptURL" hook.');
+      const previousTrustedTypesPolicy = trustedTypesPolicy;
+      trustedTypesPolicy = cfg.TRUSTED_TYPES_POLICY;
+      try {
+        emptyHTML = _createTrustedHTML("");
+      } catch (error) {
+        trustedTypesPolicy = previousTrustedTypesPolicy;
+        throw error;
+      }
+    } else if (cfg.TRUSTED_TYPES_POLICY === null) {
+      trustedTypesPolicy = undefined;
+      emptyHTML = "";
+    } else {
+      if (trustedTypesPolicy === undefined)
+        trustedTypesPolicy = _getDefaultTrustedTypesPolicy();
+      if (trustedTypesPolicy && typeof emptyHTML === "string")
+        emptyHTML = _createTrustedHTML("");
+    }
+    if (freeze)
+      freeze(cfg);
+    CONFIG = cfg;
+  };
+  const ALL_SVG_TAGS = addToSet({}, [
+    ...svg$1,
+    ...svgFilters,
+    ...svgDisallowed
+  ]);
+  const ALL_MATHML_TAGS = addToSet({}, [...mathMl$1, ...mathMlDisallowed]);
+  const _checkSvgNamespace = function _checkSvgNamespace(tagName, parent, parentTagName) {
+    if (parent.namespaceURI === HTML_NAMESPACE)
+      return tagName === "svg";
+    if (parent.namespaceURI === MATHML_NAMESPACE)
+      return tagName === "svg" && (parentTagName === "annotation-xml" || MATHML_TEXT_INTEGRATION_POINTS[parentTagName]);
+    return Boolean(ALL_SVG_TAGS[tagName]);
+  };
+  const _checkMathMlNamespace = function _checkMathMlNamespace(tagName, parent, parentTagName) {
+    if (parent.namespaceURI === HTML_NAMESPACE)
+      return tagName === "math";
+    if (parent.namespaceURI === SVG_NAMESPACE)
+      return tagName === "math" && HTML_INTEGRATION_POINTS[parentTagName];
+    return Boolean(ALL_MATHML_TAGS[tagName]);
+  };
+  const _checkHtmlNamespace = function _checkHtmlNamespace(tagName, parent, parentTagName) {
+    if (parent.namespaceURI === SVG_NAMESPACE && !HTML_INTEGRATION_POINTS[parentTagName])
+      return false;
+    if (parent.namespaceURI === MATHML_NAMESPACE && !MATHML_TEXT_INTEGRATION_POINTS[parentTagName])
+      return false;
+    return !ALL_MATHML_TAGS[tagName] && (COMMON_SVG_AND_HTML_ELEMENTS[tagName] || !ALL_SVG_TAGS[tagName]);
+  };
+  const _checkValidNamespace = function _checkValidNamespace(element) {
+    let parent = getParentNode(element);
+    if (!parent || !parent.tagName)
+      parent = {
+        namespaceURI: NAMESPACE,
+        tagName: "template"
+      };
+    const tagName = stringToLowerCase(element.tagName);
+    const parentTagName = stringToLowerCase(parent.tagName);
+    if (!ALLOWED_NAMESPACES[element.namespaceURI])
+      return false;
+    if (element.namespaceURI === SVG_NAMESPACE)
+      return _checkSvgNamespace(tagName, parent, parentTagName);
+    if (element.namespaceURI === MATHML_NAMESPACE)
+      return _checkMathMlNamespace(tagName, parent, parentTagName);
+    if (element.namespaceURI === HTML_NAMESPACE)
+      return _checkHtmlNamespace(tagName, parent, parentTagName);
+    if (PARSER_MEDIA_TYPE === "application/xhtml+xml" && ALLOWED_NAMESPACES[element.namespaceURI])
+      return true;
+    return false;
+  };
+  const _forceRemove = function _forceRemove(node) {
+    arrayPush(DOMPurify.removed, { element: node });
+    try {
+      getParentNode(node).removeChild(node);
+    } catch (_) {
+      remove(node);
+      if (!getParentNode(node))
+        throw typeErrorCreate("a node selected for removal could not be detached from its tree and cannot be safely returned; refusing to sanitize in place");
+    }
+  };
+  const _stripAttributeNode = function _stripAttributeNode(element, attribute, name) {
+    try {
+      removeAttributeNode(element, attribute);
+    } catch (_) {
+      try {
+        element.removeAttribute(name);
+      } catch (_) {}
+    }
+  };
+  const _neutralizeRoot = function _neutralizeRoot(root) {
+    _neutralizeSubtree(root);
+    const childNodes = getChildNodes(root);
+    if (childNodes) {
+      const snapshot = [];
+      arrayForEach(childNodes, (child) => {
+        arrayPush(snapshot, child);
+      });
+      arrayForEach(snapshot, (child) => {
+        try {
+          remove(child);
+        } catch (_) {}
+      });
+    }
+    const attributes = getAttributes(root);
+    if (attributes)
+      for (let i = attributes.length - 1;i >= 0; --i) {
+        const attribute = attributes[i];
+        const name = attribute && attribute.name;
+        if (typeof name === "string")
+          _stripAttributeNode(root, attribute, name);
+      }
+  };
+  const _removeAttribute = function _removeAttribute(name, element, attr) {
+    if (!attr)
+      try {
+        attr = element.getAttributeNode(name);
+      } catch (_) {
+        attr = null;
+      }
+    arrayPush(DOMPurify.removed, {
+      attribute: attr || null,
+      from: element
+    });
+    try {
+      if (attr)
+        removeAttributeNode(element, attr);
+      else
+        element.removeAttribute(name);
+    } catch (_) {
+      try {
+        element.removeAttribute(name);
+      } catch (_) {}
+    }
+    if (name === "is") {
+      if (RETURN_DOM || RETURN_DOM_FRAGMENT)
+        try {
+          _forceRemove(element);
+        } catch (_) {}
+      else
+        try {
+          element.setAttribute(name, "");
+        } catch (_) {}
+    }
+  };
+  const _stripDisallowedAttributes = function _stripDisallowedAttributes(element) {
+    const attributes = getAttributes(element);
+    if (!attributes)
+      return;
+    for (let i = attributes.length - 1;i >= 0; --i) {
+      const attribute = attributes[i];
+      const name = attribute && attribute.name;
+      if (typeof name !== "string" || ALLOWED_ATTR[transformCaseFunc(name)])
+        continue;
+      _stripAttributeNode(element, attribute, name);
+    }
+  };
+  const _neutralizeSubtree = function _neutralizeSubtree(root) {
+    const stack = [root];
+    while (stack.length > 0) {
+      const node = stack.pop();
+      if (_readNodeType(node) === NODE_TYPE.element)
+        _stripDisallowedAttributes(node);
+      const childNodes = getChildNodes(node);
+      if (childNodes)
+        for (let i = childNodes.length - 1;i >= 0; --i)
+          stack.push(childNodes[i]);
+    }
+  };
+  const _isPatchLinkageAttribute = function _isPatchLinkageAttribute(lcName, lcTag) {
+    if (!SAFE_FOR_XML)
+      return false;
+    if (lcName === "patchsrc")
+      return true;
+    return lcName === "for" && lcTag !== "label" && lcTag !== "output";
+  };
+  const _neutralizePatchLinkage = function _neutralizePatchLinkage(root) {
+    if (!SAFE_FOR_XML)
+      return;
+    const stack = [root];
+    while (stack.length > 0) {
+      const node = stack.pop();
+      const nodeType = _readNodeType(node);
+      if (nodeType === NODE_TYPE.processingInstruction || nodeType === NODE_TYPE.comment && regExpTest(COMMENT_MARKUP_PROBE, node.data)) {
+        try {
+          remove(node);
+        } catch (_) {}
+        continue;
+      }
+      if (nodeType === NODE_TYPE.element) {
+        const element = node;
+        const lcTag = transformCaseFunc(_readNodeName(node));
+        try {
+          if (element.hasAttribute && element.hasAttribute("patchsrc"))
+            element.removeAttribute("patchsrc");
+          if (element.hasAttribute && element.hasAttribute("for") && _isPatchLinkageAttribute("for", lcTag))
+            element.removeAttribute("for");
+        } catch (_) {}
+      }
+      const childNodes = getChildNodes(node);
+      if (childNodes)
+        for (let i = childNodes.length - 1;i >= 0; --i)
+          stack.push(childNodes[i]);
+    }
+  };
+  const _initDocument = function _initDocument(dirty) {
+    let doc = null;
+    let leadingWhitespace = null;
+    if (FORCE_BODY)
+      dirty = "<remove></remove>" + dirty;
+    else {
+      const matches = stringMatch(dirty, /^[\r\n\t ]+/);
+      leadingWhitespace = matches && matches[0];
+    }
+    if (PARSER_MEDIA_TYPE === "application/xhtml+xml" && NAMESPACE === HTML_NAMESPACE)
+      dirty = '<html xmlns="http://www.w3.org/1999/xhtml"><head></head><body>' + dirty + "</body></html>";
+    const dirtyPayload = trustedTypesPolicy ? _createTrustedHTML(dirty) : dirty;
+    if (NAMESPACE === HTML_NAMESPACE)
+      try {
+        doc = new DOMParser2().parseFromString(dirtyPayload, PARSER_MEDIA_TYPE);
+      } catch (_) {}
+    if (!doc || !doc.documentElement) {
+      doc = implementation.createDocument(NAMESPACE, "template", null);
+      try {
+        doc.documentElement.innerHTML = IS_EMPTY_INPUT ? emptyHTML : dirtyPayload;
+      } catch (_) {}
+    }
+    const body = doc.body || doc.documentElement;
+    if (dirty && leadingWhitespace)
+      body.insertBefore(document2.createTextNode(leadingWhitespace), body.childNodes[0] || null);
+    if (NAMESPACE === HTML_NAMESPACE)
+      return getElementsByTagName.call(doc, WHOLE_DOCUMENT ? "html" : "body")[0];
+    return WHOLE_DOCUMENT ? doc.documentElement : body;
+  };
+  const _createNodeIterator = function _createNodeIterator(root) {
+    const doc = getOwnerDocument ? getOwnerDocument(root) : root.ownerDocument;
+    return createNodeIterator.call(doc || root, root, NodeFilter.SHOW_ELEMENT | NodeFilter.SHOW_COMMENT | NodeFilter.SHOW_TEXT | NodeFilter.SHOW_PROCESSING_INSTRUCTION | NodeFilter.SHOW_CDATA_SECTION, null);
+  };
+  const _stripTemplateExpressions = function _stripTemplateExpressions(value) {
+    value = stringReplace(value, MUSTACHE_EXPR$1, " ");
+    value = stringReplace(value, ERB_EXPR$1, " ");
+    value = stringReplace(value, TMPLIT_EXPR$1, " ");
+    return value;
+  };
+  const _scrubTemplateExpressions2 = function _scrubTemplateExpressions(node) {
+    var _node$querySelectorAl;
+    node.normalize();
+    const doc = getOwnerDocument ? getOwnerDocument(node) : node.ownerDocument;
+    const walker = createNodeIterator.call(doc || node, node, NodeFilter.SHOW_TEXT | NodeFilter.SHOW_COMMENT | NodeFilter.SHOW_CDATA_SECTION | NodeFilter.SHOW_PROCESSING_INSTRUCTION, null);
+    let currentNode = walker.nextNode();
+    while (currentNode) {
+      currentNode.data = _stripTemplateExpressions(currentNode.data);
+      currentNode = walker.nextNode();
+    }
+    const templates = (_node$querySelectorAl = node.querySelectorAll) === null || _node$querySelectorAl === undefined ? undefined : _node$querySelectorAl.call(node, "template");
+    if (templates)
+      arrayForEach(templates, (tmpl) => {
+        if (_isDocumentFragment(tmpl.content))
+          _scrubTemplateExpressions2(tmpl.content);
+      });
+  };
+  const _isClobbered = function _isClobbered(element) {
+    const realTagName = getNodeName ? getNodeName(element) : null;
+    if (typeof realTagName !== "string")
+      return false;
+    if (transformCaseFunc(realTagName) !== "form")
+      return false;
+    return typeof element.nodeName !== "string" || typeof element.textContent !== "string" || typeof element.removeChild !== "function" || element.attributes !== getAttributes(element) || typeof element.removeAttribute !== "function" || typeof element.removeAttributeNode !== "function" || typeof element.getAttributeNode !== "function" || typeof element.setAttribute !== "function" || typeof element.namespaceURI !== "string" || typeof element.insertBefore !== "function" || typeof element.hasChildNodes !== "function" || element.nodeType !== getNodeType(element) || element.childNodes !== getChildNodes(element);
+  };
+  const _isDocumentFragment = function _isDocumentFragment(value) {
+    if (!getNodeType || typeof value !== "object" || value === null)
+      return false;
+    try {
+      return getNodeType(value) === NODE_TYPE.documentFragment;
+    } catch (_) {
+      return false;
+    }
+  };
+  const _isNode = function _isNode(value) {
+    if (!getNodeType || typeof value !== "object" || value === null)
+      return false;
+    try {
+      return typeof getNodeType(value) === "number";
+    } catch (_) {
+      return false;
+    }
+  };
+  function _executeHooks(hooks, currentNode, data) {
+    if (hooks.length === 0)
+      return;
+    arrayForEach(hooks, (hook) => {
+      hook.call(DOMPurify, currentNode, data, CONFIG);
+    });
+  }
+  const _isUnsafeNode = function _isUnsafeNode(currentNode, tagName) {
+    if (SAFE_FOR_XML && currentNode.hasChildNodes() && !_isNode(currentNode.firstElementChild) && regExpTest(ELEMENT_MARKUP_PROBE, currentNode.textContent) && regExpTest(ELEMENT_MARKUP_PROBE, currentNode.innerHTML))
+      return true;
+    if (SAFE_FOR_XML && currentNode.namespaceURI === HTML_NAMESPACE && LITERAL_TEXT_ELEMENTS[tagName] && (_isNode(currentNode.firstElementChild) || typeof currentNode.textContent === "string" && regExpTest(LITERAL_TEXT_CLOSE[tagName], currentNode.textContent)))
+      return true;
+    if (currentNode.nodeType === NODE_TYPE.processingInstruction)
+      return true;
+    if (SAFE_FOR_XML && currentNode.nodeType === NODE_TYPE.comment && regExpTest(COMMENT_MARKUP_PROBE, currentNode.data))
+      return true;
+    return false;
+  };
+  const _matchesNameCheck = function _matchesNameCheck(check, name) {
+    if (check instanceof RegExp)
+      return regExpTest(check, name);
+    if (check instanceof Function) {
+      for (var _len = arguments.length, args = new Array(_len > 2 ? _len - 2 : 0), _key = 2;_key < _len; _key++)
+        args[_key - 2] = arguments[_key];
+      return Boolean(check(name, ...args));
+    }
+    return false;
+  };
+  const _sanitizeDisallowedNode = function _sanitizeDisallowedNode(currentNode, tagName, root) {
+    if (!FORBID_TAGS[tagName] && _isBasicCustomElement(tagName) && _matchesNameCheck(CUSTOM_ELEMENT_HANDLING.tagNameCheck, tagName))
+      return false;
+    if (KEEP_CONTENT && !FORBID_CONTENTS[tagName]) {
+      const parentNode = getParentNode(currentNode);
+      const childNodes = getChildNodes(currentNode);
+      if (childNodes && parentNode) {
+        const childCount = childNodes.length;
+        for (let i = childCount - 1;i >= 0; --i) {
+          const hoisted = currentNode === root ? cloneNode(childNodes[i], true) : childNodes[i];
+          parentNode.insertBefore(hoisted, getNextSibling(currentNode));
+        }
+      }
+    }
+    _forceRemove(currentNode);
+    return true;
+  };
+  const _forkSharedAllowlist = function _forkSharedAllowlist(hookList, set, defaultSet, setConfigSet) {
+    if (hookList.length === 0)
+      return set;
+    return set === defaultSet || set === setConfigSet ? clone(set) : set;
+  };
+  const _handleHookDetachedNode = function _handleHookDetachedNode(currentNode, root) {
+    if (currentNode === root || getParentNode(currentNode) !== null)
+      return false;
+    if (IN_PLACE)
+      _neutralizeSubtree(currentNode);
+    return true;
+  };
+  const _sanitizeElements = function _sanitizeElements(currentNode, root) {
+    _executeHooks(hooks.beforeSanitizeElements, currentNode, null);
+    if (_handleHookDetachedNode(currentNode, root))
+      return true;
+    if (_isClobbered(currentNode)) {
+      _forceRemove(currentNode);
+      return true;
+    }
+    const tagName = transformCaseFunc(_readNodeName(currentNode));
+    ALLOWED_TAGS = _forkSharedAllowlist(hooks.uponSanitizeElement, ALLOWED_TAGS, DEFAULT_ALLOWED_TAGS, SET_CONFIG_ALLOWED_TAGS);
+    _executeHooks(hooks.uponSanitizeElement, currentNode, {
+      tagName,
+      allowedTags: ALLOWED_TAGS
+    });
+    if (_handleHookDetachedNode(currentNode, root))
+      return true;
+    if (_isUnsafeNode(currentNode, tagName)) {
+      _forceRemove(currentNode);
+      return true;
+    }
+    if (FORBID_TAGS[tagName] || !(EXTRA_ELEMENT_HANDLING.tagCheck instanceof Function && EXTRA_ELEMENT_HANDLING.tagCheck(tagName)) && !ALLOWED_TAGS[tagName]) {
+      const removed = _sanitizeDisallowedNode(currentNode, tagName, root);
+      if (removed === false) {
+        _executeHooks(hooks.afterSanitizeElements, currentNode, null);
+        if (_handleHookDetachedNode(currentNode, root))
+          return true;
+      }
+      return removed;
+    }
+    if (_readNodeType(currentNode) === NODE_TYPE.element && !_checkValidNamespace(currentNode)) {
+      _forceRemove(currentNode);
+      return true;
+    }
+    if ((tagName === "noscript" || tagName === "noembed" || tagName === "noframes") && regExpTest(FALLBACK_TAG_CLOSE, currentNode.innerHTML)) {
+      _forceRemove(currentNode);
+      return true;
+    }
+    if (SAFE_FOR_TEMPLATES && currentNode.nodeType === NODE_TYPE.text) {
+      const content = _stripTemplateExpressions(currentNode.textContent);
+      if (currentNode.textContent !== content) {
+        arrayPush(DOMPurify.removed, { element: currentNode.cloneNode() });
+        currentNode.textContent = content;
+      }
+    }
+    _executeHooks(hooks.afterSanitizeElements, currentNode, null);
+    return _handleHookDetachedNode(currentNode, root);
+  };
+  const _isValidAttribute = function _isValidAttribute(lcTag, lcName, value) {
+    if (FORBID_ATTR[lcName])
+      return false;
+    if (_isPatchLinkageAttribute(lcName, lcTag))
+      return false;
+    if (SANITIZE_DOM && (lcName === "id" || lcName === "name") && ((value in document2) || (value in formElement)))
+      return false;
+    const nameIsPermitted = ALLOWED_ATTR[lcName] || EXTRA_ELEMENT_HANDLING.attributeCheck instanceof Function && EXTRA_ELEMENT_HANDLING.attributeCheck(lcName, lcTag);
+    if (ALLOW_DATA_ATTR && regExpTest(DATA_ATTR$1, lcName))
+      return true;
+    if (ALLOW_ARIA_ATTR && regExpTest(ARIA_ATTR$1, lcName))
+      return true;
+    if (!nameIsPermitted)
+      return _isBasicCustomElement(lcTag) && _matchesNameCheck(CUSTOM_ELEMENT_HANDLING.tagNameCheck, lcTag) && _matchesNameCheck(CUSTOM_ELEMENT_HANDLING.attributeNameCheck, lcName, lcTag) || lcName === "is" && CUSTOM_ELEMENT_HANDLING.allowCustomizedBuiltInElements && _matchesNameCheck(CUSTOM_ELEMENT_HANDLING.tagNameCheck, value);
+    if (URI_SAFE_ATTRIBUTES[lcName])
+      return true;
+    if (regExpTest(IS_ALLOWED_URI$1, stringReplace(value, ATTR_WHITESPACE$1, "")))
+      return true;
+    if ((lcName === "src" || lcName === "xlink:href" || lcName === "href") && lcTag !== "script" && stringIndexOf(value, "data:") === 0 && DATA_URI_TAGS[lcTag])
+      return true;
+    if (ALLOW_UNKNOWN_PROTOCOLS && !regExpTest(IS_SCRIPT_OR_DATA$1, stringReplace(value, ATTR_WHITESPACE$1, "")))
+      return true;
+    return !value;
+  };
+  const RESERVED_CUSTOM_ELEMENT_NAMES = addToSet({}, [
+    "annotation-xml",
+    "color-profile",
+    "font-face",
+    "font-face-format",
+    "font-face-name",
+    "font-face-src",
+    "font-face-uri",
+    "missing-glyph"
+  ]);
+  const _isBasicCustomElement = function _isBasicCustomElement(tagName) {
+    return !RESERVED_CUSTOM_ELEMENT_NAMES[stringToLowerCase(tagName)] && regExpTest(CUSTOM_ELEMENT$1, tagName);
+  };
+  const _applyTrustedTypesToAttribute = function _applyTrustedTypesToAttribute(lcTag, lcName, namespaceURI, value) {
+    if (trustedTypesPolicy && typeof trustedTypes === "object" && typeof trustedTypes.getAttributeType === "function" && !namespaceURI)
+      switch (trustedTypes.getAttributeType(lcTag, lcName)) {
+        case "TrustedHTML":
+          return _createTrustedHTML(value);
+        case "TrustedScriptURL":
+          return _createTrustedScriptURL(value);
+      }
+    return value;
+  };
+  const _setAttributeValue = function _setAttributeValue(currentNode, name, namespaceURI, value) {
+    try {
+      if (namespaceURI)
+        currentNode.setAttributeNS(namespaceURI, name, value);
+      else
+        currentNode.setAttribute(name, value);
+      if (_isClobbered(currentNode)) {
+        _forceRemove(currentNode);
+        return false;
+      }
+      return true;
+    } catch (_) {
+      _removeAttribute(name, currentNode);
+      return false;
+    }
+  };
+  const _sanitizeAttributes = function _sanitizeAttributes(currentNode, root) {
+    _executeHooks(hooks.beforeSanitizeAttributes, currentNode, null);
+    if (_handleHookDetachedNode(currentNode, root))
+      return;
+    const attributes = currentNode.attributes;
+    if (!attributes || _isClobbered(currentNode))
+      return;
+    ALLOWED_ATTR = _forkSharedAllowlist(hooks.uponSanitizeAttribute, ALLOWED_ATTR, DEFAULT_ALLOWED_ATTR, SET_CONFIG_ALLOWED_ATTR);
+    const hookEvent = {
+      attrName: "",
+      attrValue: "",
+      keepAttr: true,
+      allowedAttributes: ALLOWED_ATTR,
+      forceKeepAttr: undefined
+    };
+    let l = attributes.length;
+    const lcTag = transformCaseFunc(currentNode.nodeName);
+    while (l--) {
+      const attr = attributes[l];
+      const { name, namespaceURI, value: attrValue } = attr;
+      const lcName = transformCaseFunc(name);
+      const initValue = attrValue;
+      let value = name === "value" ? initValue : stringTrim(initValue);
+      let recreatedNamedProp = false;
+      hookEvent.attrName = lcName;
+      hookEvent.attrValue = value;
+      hookEvent.keepAttr = true;
+      hookEvent.forceKeepAttr = undefined;
+      _executeHooks(hooks.uponSanitizeAttribute, currentNode, hookEvent);
+      value = hookEvent.attrValue;
+      if (SANITIZE_NAMED_PROPS && (lcName === "id" || lcName === "name") && stringIndexOf(value, SANITIZE_NAMED_PROPS_PREFIX) !== 0) {
+        _removeAttribute(name, currentNode, attr);
+        value = SANITIZE_NAMED_PROPS_PREFIX + value;
+        recreatedNamedProp = true;
+      }
+      if (SAFE_FOR_XML && regExpTest(/((--!?|])>)|<\/(style|script|title|xmp|textarea|noscript|iframe|noembed|noframes)/i, value)) {
+        _removeAttribute(name, currentNode, attr);
+        continue;
+      }
+      if (lcName === "attributename" && stringMatch(value, "href")) {
+        _removeAttribute(name, currentNode, attr);
+        continue;
+      }
+      if (hookEvent.forceKeepAttr)
+        continue;
+      if (!hookEvent.keepAttr) {
+        _removeAttribute(name, currentNode, attr);
+        continue;
+      }
+      if (!ALLOW_SELF_CLOSE_IN_ATTR && regExpTest(SELF_CLOSING_TAG, value)) {
+        _removeAttribute(name, currentNode, attr);
+        continue;
+      }
+      if (SAFE_FOR_TEMPLATES)
+        value = _stripTemplateExpressions(value);
+      if (!_isValidAttribute(lcTag, lcName, value)) {
+        _removeAttribute(name, currentNode, attr);
+        continue;
+      }
+      value = _applyTrustedTypesToAttribute(lcTag, lcName, namespaceURI, value);
+      if (value !== initValue) {
+        if (_setAttributeValue(currentNode, name, namespaceURI, value) && recreatedNamedProp)
+          arrayPop(DOMPurify.removed);
+      }
+    }
+    _executeHooks(hooks.afterSanitizeAttributes, currentNode, null);
+    _handleHookDetachedNode(currentNode, root);
+  };
+  const _sanitizeShadowDOM2 = function _sanitizeShadowDOM(fragment) {
+    let shadowNode = null;
+    const shadowIterator = _createNodeIterator(fragment);
+    _executeHooks(hooks.beforeSanitizeShadowDOM, fragment, null);
+    while (shadowNode = shadowIterator.nextNode()) {
+      _executeHooks(hooks.uponSanitizeShadowNode, shadowNode, null);
+      _sanitizeElements(shadowNode, fragment);
+      _sanitizeAttributes(shadowNode, fragment);
+      if (_isDocumentFragment(shadowNode.content))
+        _sanitizeShadowDOM2(shadowNode.content);
+      if (_readNodeType(shadowNode) === NODE_TYPE.element) {
+        const innerSr = getShadowRoot(shadowNode);
+        if (_isDocumentFragment(innerSr)) {
+          _sanitizeAttachedShadowRoots(innerSr);
+          _sanitizeShadowDOM2(innerSr);
+        }
+      }
+    }
+    _executeHooks(hooks.afterSanitizeShadowDOM, fragment, null);
+  };
+  const _sanitizeAttachedShadowRoots = function _sanitizeAttachedShadowRoots(root) {
+    const stack = [{
+      node: root,
+      shadow: null
+    }];
+    while (stack.length > 0) {
+      const item = stack.pop();
+      if (item.shadow) {
+        _sanitizeShadowDOM2(item.shadow);
+        continue;
+      }
+      const node = item.node;
+      const isElement = _readNodeType(node) === NODE_TYPE.element;
+      const childNodes = getChildNodes(node);
+      if (childNodes)
+        for (let i = childNodes.length - 1;i >= 0; --i)
+          stack.push({
+            node: childNodes[i],
+            shadow: null
+          });
+      if (isElement) {
+        const rootName = getNodeName ? getNodeName(node) : null;
+        if (typeof rootName === "string" && transformCaseFunc(rootName) === "template") {
+          const content = node.content;
+          if (_isDocumentFragment(content))
+            stack.push({
+              node: content,
+              shadow: null
+            });
+        }
+      }
+      if (isElement) {
+        const sr = getShadowRoot(node);
+        if (_isDocumentFragment(sr))
+          stack.push({
+            node: null,
+            shadow: sr
+          }, {
+            node: sr,
+            shadow: null
+          });
+      }
+    }
+  };
+  DOMPurify.sanitize = function(dirty) {
+    let cfg = arguments.length > 1 && arguments[1] !== undefined ? arguments[1] : {};
+    let body = null;
+    let importedNode = null;
+    let currentNode = null;
+    let returnNode = null;
+    IS_EMPTY_INPUT = !dirty;
+    if (IS_EMPTY_INPUT)
+      dirty = "<!-->";
+    if (typeof dirty !== "string" && !_isNode(dirty)) {
+      dirty = stringifyValue(dirty);
+      if (typeof dirty !== "string")
+        throw typeErrorCreate("dirty is not a string, aborting");
+    }
+    if (!DOMPurify.isSupported)
+      return dirty;
+    if (SET_CONFIG) {
+      ALLOWED_TAGS = SET_CONFIG_ALLOWED_TAGS;
+      ALLOWED_ATTR = SET_CONFIG_ALLOWED_ATTR;
+    } else
+      _parseConfig(cfg);
+    if (hooks.uponSanitizeElement.length > 0 || hooks.uponSanitizeAttribute.length > 0)
+      ALLOWED_TAGS = clone(ALLOWED_TAGS);
+    if (hooks.uponSanitizeAttribute.length > 0)
+      ALLOWED_ATTR = clone(ALLOWED_ATTR);
+    DOMPurify.removed = [];
+    const inPlace = IN_PLACE && typeof dirty !== "string" && _isNode(dirty);
+    if (inPlace) {
+      _neutralizePatchLinkage(dirty);
+      const nn = _readNodeName(dirty);
+      if (typeof nn === "string") {
+        const tagName = transformCaseFunc(nn);
+        if (!ALLOWED_TAGS[tagName] || FORBID_TAGS[tagName]) {
+          _neutralizeRoot(dirty);
+          throw typeErrorCreate("root node is forbidden and cannot be sanitized in-place");
+        }
+      }
+      if (_isClobbered(dirty)) {
+        _neutralizeRoot(dirty);
+        throw typeErrorCreate("root node is clobbered and cannot be sanitized in-place");
+      }
+      try {
+        _sanitizeAttachedShadowRoots(dirty);
+      } catch (error) {
+        _neutralizeRoot(dirty);
+        throw error;
+      }
+    } else if (_isNode(dirty)) {
+      body = _initDocument("<!---->");
+      importedNode = body.ownerDocument.importNode(dirty, true);
+      if (importedNode.nodeType === NODE_TYPE.element && importedNode.nodeName === "BODY")
+        body = importedNode;
+      else if (importedNode.nodeName === "HTML")
+        body = importedNode;
+      else
+        body.appendChild(importedNode);
+      _sanitizeAttachedShadowRoots(body);
+    } else {
+      if (!RETURN_DOM && !SAFE_FOR_TEMPLATES && !WHOLE_DOCUMENT && dirty.indexOf("<") === -1)
+        return trustedTypesPolicy && RETURN_TRUSTED_TYPE ? _createTrustedHTML(dirty) : dirty;
+      body = _initDocument(dirty);
+      if (!body)
+        return RETURN_DOM ? null : RETURN_TRUSTED_TYPE ? emptyHTML : "";
+    }
+    if (body && FORCE_BODY)
+      _forceRemove(body.firstChild);
+    const walkRoot = inPlace ? dirty : body;
+    try {
+      const nodeIterator = _createNodeIterator(walkRoot);
+      while (currentNode = nodeIterator.nextNode()) {
+        _sanitizeElements(currentNode, walkRoot);
+        _sanitizeAttributes(currentNode, walkRoot);
+        if (_isDocumentFragment(currentNode.content))
+          _sanitizeShadowDOM2(currentNode.content);
+      }
+    } catch (error) {
+      if (inPlace) {
+        _neutralizeRoot(dirty);
+        arrayForEach(DOMPurify.removed, (entry) => {
+          if (entry.element)
+            _neutralizeSubtree(entry.element);
+        });
+      }
+      throw error;
+    }
+    if (inPlace) {
+      let rootWasRemoved = false;
+      arrayForEach(DOMPurify.removed, (entry) => {
+        if (entry.element) {
+          if (entry.element === dirty)
+            rootWasRemoved = true;
+          _neutralizeSubtree(entry.element);
+        }
+      });
+      if (rootWasRemoved)
+        throw typeErrorCreate("a node selected for removal could not be safely returned; refusing to sanitize in place");
+      if (SAFE_FOR_TEMPLATES)
+        _scrubTemplateExpressions2(dirty);
+      return dirty;
+    }
+    if (RETURN_DOM) {
+      if (SAFE_FOR_TEMPLATES)
+        _scrubTemplateExpressions2(body);
+      if (RETURN_DOM_FRAGMENT) {
+        returnNode = createDocumentFragment.call(body.ownerDocument);
+        while (body.firstChild)
+          returnNode.appendChild(body.firstChild);
+      } else
+        returnNode = body;
+      if (ALLOWED_ATTR.shadowroot || ALLOWED_ATTR.shadowrootmode)
+        returnNode = importNode.call(originalDocument, returnNode, true);
+      return returnNode;
+    }
+    let serializedHTML = WHOLE_DOCUMENT ? body.outerHTML : body.innerHTML;
+    if (WHOLE_DOCUMENT && ALLOWED_TAGS["!doctype"] && body.ownerDocument && body.ownerDocument.doctype && body.ownerDocument.doctype.name && regExpTest(DOCTYPE_NAME, body.ownerDocument.doctype.name))
+      serializedHTML = "<!DOCTYPE " + body.ownerDocument.doctype.name + `>
+` + serializedHTML;
+    if (SAFE_FOR_TEMPLATES)
+      serializedHTML = _stripTemplateExpressions(serializedHTML);
+    return trustedTypesPolicy && RETURN_TRUSTED_TYPE ? _createTrustedHTML(serializedHTML) : serializedHTML;
+  };
+  DOMPurify.setConfig = function() {
+    let cfg = arguments.length > 0 && arguments[0] !== undefined ? arguments[0] : {};
+    _parseConfig(cfg);
+    SET_CONFIG = true;
+    SET_CONFIG_ALLOWED_TAGS = ALLOWED_TAGS;
+    SET_CONFIG_ALLOWED_ATTR = ALLOWED_ATTR;
+  };
+  DOMPurify.clearConfig = function() {
+    CONFIG = null;
+    SET_CONFIG = false;
+    SET_CONFIG_ALLOWED_TAGS = null;
+    SET_CONFIG_ALLOWED_ATTR = null;
+    trustedTypesPolicy = defaultTrustedTypesPolicy;
+    emptyHTML = "";
+  };
+  DOMPurify.isValidAttribute = function(tag, attr, value) {
+    if (!CONFIG)
+      _parseConfig({});
+    const lcTag = transformCaseFunc(tag);
+    const lcName = transformCaseFunc(attr);
+    return _isValidAttribute(lcTag, lcName, value);
+  };
+  DOMPurify.addHook = function(entryPoint, hookFunction) {
+    if (typeof hookFunction !== "function")
+      return;
+    if (!objectHasOwnProperty(hooks, entryPoint))
+      return;
+    arrayPush(hooks[entryPoint], hookFunction);
+  };
+  DOMPurify.removeHook = function(entryPoint, hookFunction) {
+    if (!objectHasOwnProperty(hooks, entryPoint))
+      return;
+    if (hookFunction !== undefined) {
+      const index = arrayLastIndexOf(hooks[entryPoint], hookFunction);
+      return index === -1 ? undefined : arraySplice(hooks[entryPoint], index, 1)[0];
+    }
+    return arrayPop(hooks[entryPoint]);
+  };
+  DOMPurify.removeHooks = function(entryPoint) {
+    if (!objectHasOwnProperty(hooks, entryPoint))
+      return;
+    hooks[entryPoint] = [];
+  };
+  DOMPurify.removeAllHooks = function() {
+    hooks = _createHooksMap();
+  };
+  return DOMPurify;
+}
+var purify_default = createDOMPurify();
+
+// src/render/island-markdown.ts
+var STYLE_PLACEHOLDER_RE = /^<!--ISLAND_STYLE_\d+-->$/;
+var VOID_HTML_TAG_RE = /^<(area|base|br|col|embed|hr|img|input|link|meta|param|source|track|wbr)\b/i;
+var RAW_TEXT_CONTEXT_TAGS = new Set(["code", "pre", "script"]);
+var NO_MARKDOWN_SUBTREE_TAGS = new Set(["svg"]);
+var KEPT_TAGS = new Set([
+  "a",
+  "abbr",
+  "acronym",
+  "address",
+  "area",
+  "article",
+  "aside",
+  "audio",
+  "b",
+  "bdi",
+  "bdo",
+  "big",
+  "blink",
+  "blockquote",
+  "body",
+  "br",
+  "button",
+  "canvas",
+  "caption",
+  "center",
+  "cite",
+  "code",
+  "col",
+  "colgroup",
+  "content",
+  "data",
+  "datalist",
+  "dd",
+  "del",
+  "details",
+  "dfn",
+  "dialog",
+  "dir",
+  "div",
+  "dl",
+  "dt",
+  "em",
+  "fieldset",
+  "figcaption",
+  "figure",
+  "font",
+  "footer",
+  "h1",
+  "h2",
+  "h3",
+  "h4",
+  "h5",
+  "h6",
+  "head",
+  "header",
+  "hgroup",
+  "hr",
+  "html",
+  "i",
+  "img",
+  "input",
+  "ins",
+  "kbd",
+  "label",
+  "legend",
+  "li",
+  "main",
+  "map",
+  "mark",
+  "marquee",
+  "menu",
+  "meter",
+  "nav",
+  "nobr",
+  "ol",
+  "optgroup",
+  "option",
+  "output",
+  "p",
+  "picture",
+  "pre",
+  "progress",
+  "q",
+  "rp",
+  "rt",
+  "ruby",
+  "s",
+  "samp",
+  "section",
+  "select",
+  "small",
+  "source",
+  "spacer",
+  "span",
+  "strike",
+  "strong",
+  "style",
+  "sub",
+  "summary",
+  "sup",
+  "svg",
+  "table",
+  "tbody",
+  "td",
+  "template",
+  "textarea",
+  "tfoot",
+  "th",
+  "thead",
+  "time",
+  "tr",
+  "track",
+  "tt",
+  "u",
+  "ul",
+  "var",
+  "video",
+  "wbr"
+]);
+var BLOCK_MARKDOWN_PARENT_TAGS = new Set([
+  "article",
+  "aside",
+  "blockquote",
+  "body",
+  "dd",
+  "details",
+  "div",
+  "fieldset",
+  "figcaption",
+  "figure",
+  "footer",
+  "header",
+  "html",
+  "li",
+  "main",
+  "nav",
+  "section",
+  "td",
+  "th"
+]);
+function updateTagStack(part, stack, rawText) {
+  const close = part.match(/^<\/([a-z][\w:-]*)\b/i);
+  if (close) {
+    const tag = close[1].toLowerCase();
+    if (RAW_TEXT_CONTEXT_TAGS.has(tag))
+      rawText.depth = Math.max(0, rawText.depth - 1);
+    if (!KEPT_TAGS.has(tag) || stack.tags.length === 0)
+      return;
+    const idx = stack.positions.get(tag)?.pop();
+    if (idx !== undefined) {
+      stack.tags[idx] = "";
+      while (stack.tags[stack.tags.length - 1] === "")
+        stack.tags.pop();
+    }
+    return;
+  }
+  const open = part.match(/^<([a-z][\w:-]*)\b/i);
+  if (!open)
+    return;
+  const tag = open[1].toLowerCase();
+  if (RAW_TEXT_CONTEXT_TAGS.has(tag))
+    rawText.depth += 1;
+  if (!KEPT_TAGS.has(tag))
+    return;
+  const selfClosing = /\/\s*>$/.test(part) || VOID_HTML_TAG_RE.test(part);
+  if (!selfClosing) {
+    let positions = stack.positions.get(tag);
+    if (!positions) {
+      positions = [];
+      stack.positions.set(tag, positions);
+    }
+    positions.push(stack.tags.length);
+    stack.tags.push(tag);
+  }
+}
+function shouldRenderInline(stack) {
+  const current = stack.tags[stack.tags.length - 1];
+  return current != null && !BLOCK_MARKDOWN_PARENT_TAGS.has(current);
+}
+function isMarkdownExcluded(stack) {
+  if (stack.tags.length === 0)
+    return false;
+  for (const tag of NO_MARKDOWN_SUBTREE_TAGS) {
+    if (stack.positions.get(tag)?.length)
+      return true;
+  }
+  return false;
+}
+function processMarkdownInHtml(html, renderer) {
+  const styleBlocks = new Map;
+  const chunks = [];
+  const styleOpen = /<style[\s>]/gi;
+  const styleClose = /<\/style\s*>/gi;
+  let cursor = 0;
+  let open;
+  while ((open = styleOpen.exec(html)) !== null) {
+    styleClose.lastIndex = styleOpen.lastIndex;
+    if (!styleClose.exec(html))
+      break;
+    const marker = "<!--ISLAND_STYLE_" + styleBlocks.size + "-->";
+    chunks.push(html.slice(cursor, open.index), marker);
+    cursor = styleClose.lastIndex;
+    styleBlocks.set(marker, html.slice(open.index, cursor));
+    styleOpen.lastIndex = cursor;
+  }
+  chunks.push(html.slice(cursor));
+  const parts = chunks.join("").split(/(<[^>]*>)/);
+  const restore = (part) => styleBlocks.size > 0 && part.includes("<!--ISLAND_STYLE_") ? part.replace(/<!--ISLAND_STYLE_\d+-->/g, (m) => styleBlocks.get(m) ?? m) : part;
+  const stack = { tags: [], positions: new Map };
+  const rawText = { depth: 0 };
+  const out = [];
+  for (let i = 0;i < parts.length; i++) {
+    const part = parts[i];
+    if (!part)
+      continue;
+    if (i % 2 === 1) {
+      out.push(part.startsWith("<!--") ? restore(part) : part);
+      if (!part.startsWith("<!--"))
+        updateTagStack(part, stack, rawText);
+      continue;
+    }
+    if (rawText.depth > 0 || isMarkdownExcluded(stack) || STYLE_PLACEHOLDER_RE.test(part.trim())) {
+      out.push(part);
+      continue;
+    }
+    if (!part.trim()) {
+      out.push(part);
+      continue;
+    }
+    out.push(shouldRenderInline(stack) ? renderer.renderInlineText(part) : renderer.renderBlockText(part));
+  }
+  return out.join("");
+}
+
+// src/render/pipeline.ts
+function getPurify() {
+  if (typeof purify_default?.sanitize === "function")
+    return purify_default;
+  if (typeof purify_default?.default?.sanitize === "function")
+    return purify_default.default;
+  if (typeof purify_default === "function") {
+    const root = typeof window !== "undefined" ? window : globalThis.window;
+    if (root)
+      return purify_default(root);
+  }
+  return purify_default;
+}
+var HAS_HTML_RE = /<\/?[a-z][\w:-]*(?:\s[^>]*)?\/?>/i;
+var DOCUMENT_HTML_RE = /<(?:!doctype\b|html\b|head\b|body\b)/i;
+var STYLE_TAG_RE = /<style\b[^>]*>([\s\S]*?)<\/style\s*>/gi;
+var FENCE_RE = /^[ \t]*(`{3,}|~{3,})[^\n]*\n[\s\S]*?^[ \t]*\1[`~]*[ \t]*$/gm;
+var SAFE_DATA_IMAGE_RE = /^data:image\/(?:png|apng|jpeg|jpg|gif|webp|avif|bmp);/i;
+var FORBID_TAGS = ["script", "iframe", "frame", "object", "embed", "meta", "base", "link", "math", "style", "form"];
+var FORBID_ATTR = ["srcdoc", "formaction"];
+var ALLOWED_IMPORT_HOSTS = new Set(["fonts.googleapis.com"]);
+function parseBlock(markdown) {
+  return g.parse(markdown, { async: false, breaks: true, gfm: true });
+}
+function parseInline(markdown) {
+  return g.parseInline(markdown, { async: false, breaks: true, gfm: true });
+}
+function renderBlockText(markdown) {
+  const leading = markdown.match(/^\s*/)?.[0] ?? "";
+  const trailing = markdown.match(/(?<!\s)\s*$/)?.[0] ?? "";
+  const core = markdown.trim();
+  if (!core)
+    return markdown;
+  let html = parseBlock(core);
+  const blockSeparated = /\n[^\S\n]*\n/.test(leading) || /\n[^\S\n]*\n/.test(trailing);
+  const single = html.match(/^<p>([\s\S]*)<\/p>\s*$/);
+  if (!blockSeparated && single && !/<\/p>\s*<p\b/i.test(html))
+    html = single[1];
+  return `${leading}${html}${trailing}`;
+}
+function renderInlineText(markdown) {
+  const leading = markdown.match(/^\s*/)?.[0] ?? "";
+  const trailing = markdown.match(/(?<!\s)\s*$/)?.[0] ?? "";
+  const core = markdown.trim();
+  if (!core)
+    return markdown;
+  return `${leading}${parseInline(core)}${trailing}`;
+}
+function normalizeDocumentHtml(html) {
+  if (!DOCUMENT_HTML_RE.test(html))
+    return html;
+  const doc = new DOMParser().parseFromString(html, "text/html");
+  const parts = [];
+  for (const style of doc.head.querySelectorAll("style"))
+    parts.push(style.outerHTML);
+  const body = doc.body.innerHTML.trim();
+  if (body)
+    parts.push(body);
+  return parts.length > 0 ? parts.join(`
+`) : html;
+}
+function applyMarkdown(raw) {
+  const pieces = [];
+  let cursor = 0;
+  const flush = (segment) => {
+    if (!segment.trim()) {
+      pieces.push(segment);
+      return;
+    }
+    pieces.push(HAS_HTML_RE.test(segment) ? processMarkdownInHtml(segment, { renderBlockText, renderInlineText }) : parseBlock(segment));
+  };
+  FENCE_RE.lastIndex = 0;
+  for (let m = FENCE_RE.exec(raw);m; m = FENCE_RE.exec(raw)) {
+    flush(raw.slice(cursor, m.index));
+    pieces.push(parseBlock(m[0]));
+    cursor = m.index + m[0].length;
+  }
+  flush(raw.slice(cursor));
+  return pieces.join(`
+`);
+}
+function sanitizeCss(css) {
+  return css.replace(/<\/style/gi, "<\\/style").replace(/url\(\s*(['"]?)\s*javascript:[\s\S]*?\)/gi, "url($1about:blank)").replace(/\bexpression\s*\(/gi, "x-expression(").replace(/\b(?:behavior|-moz-binding)\s*:/gi, "x-blocked-property:");
+}
+function isAllowedImport(rawUrl) {
+  try {
+    const url = new URL(rawUrl.trim());
+    return url.protocol === "https:" && ALLOWED_IMPORT_HOSTS.has(url.hostname);
+  } catch {
+    return false;
+  }
+}
+function splitHoistedCss(css) {
+  const hoisted = [];
+  let rest = css.replace(/@import\s+url\(\s*(['"]?)(.*?)\1\s*\)[^;]*;?/gi, (match, _q, url) => {
+    if (isAllowedImport(url))
+      hoisted.push(match.trim().replace(/;?$/, ";"));
+    return "";
+  }).replace(/@import\s+(['"])(.*?)\1[^;]*;?/gi, (match, _q, url) => {
+    if (isAllowedImport(url))
+      hoisted.push(match.trim().replace(/;?$/, ";"));
+    return "";
+  });
+  rest = rest.replace(/@font-face\s*\{[^}]*\}/gi, (match) => {
+    hoisted.push(match);
+    return "";
+  });
+  return { hoisted: hoisted.join(`
+`), rest };
+}
+function scopePageSelectors(css, scope) {
+  return css.replace(/([^{}@;]+)\{/g, (match, prelude) => {
+    const scoped = prelude.replace(/:root\b/gi, scope).replace(/(^|[\s,>+~(])(?:html|body)(?![\w-])/gi, `$1${scope}`);
+    return scoped === prelude ? match : `${scoped}{`;
+  });
+}
+function isAllowedImageSrc(src) {
+  const trimmed = src.trim();
+  if (!trimmed)
+    return false;
+  if (SAFE_DATA_IMAGE_RE.test(trimmed) || trimmed.startsWith("blob:"))
+    return true;
+  if (!/^(?:[a-z][a-z0-9+.-]*:|\/\/)/i.test(trimmed))
+    return true;
+  try {
+    const url = new URL(trimmed, window.location.origin);
+    return url.protocol === "http:" || url.protocol === "https:";
+  } catch {
+    return false;
+  }
+}
+function sanitizeMarkup(html) {
+  const purify = getPurify();
+  const fragment = purify.sanitize(html, {
+    ADD_ATTR: (name) => {
+      const n = name.toLowerCase();
+      return n.includes("-") && !n.startsWith("data-") && !n.startsWith("aria-") && !n.includes(":");
+    },
+    ALLOW_DATA_ATTR: true,
+    ALLOW_ARIA_ATTR: true,
+    FORBID_TAGS,
+    FORBID_ATTR,
+    RETURN_DOM_FRAGMENT: true
+  });
+  for (const a of fragment.querySelectorAll("a[href], area[href]")) {
+    const href = a.getAttribute("href") || "";
+    if (/^\s*(?:javascript|data|vbscript):/i.test(href)) {
+      a.removeAttribute("href");
+    } else {
+      a.setAttribute("target", "_blank");
+      a.setAttribute("rel", "noopener noreferrer");
+    }
+  }
+  for (const img of fragment.querySelectorAll("img")) {
+    if (!isAllowedImageSrc(img.getAttribute("src") || "")) {
+      img.remove();
+      continue;
+    }
+    img.removeAttribute("srcset");
+    if (!img.hasAttribute("loading"))
+      img.setAttribute("loading", "lazy");
+  }
+  const wrapper = document.createElement("div");
+  wrapper.appendChild(fragment);
+  return wrapper.innerHTML;
+}
+function renderNotes(source) {
+  const raw = normalizeDocumentHtml(source.replace(/\r\n?/g, `
+`));
+  const withMarkdown = applyMarkdown(raw);
+  const cssBlocks = [];
+  const markup = withMarkdown.replace(STYLE_TAG_RE, (_m, css) => {
+    const clean = sanitizeCss(css);
+    if (clean.trim())
+      cssBlocks.push(clean);
+    return "";
+  });
+  const { hoisted, rest } = splitHoistedCss(cssBlocks.join(`
+`));
+  return { html: sanitizeMarkup(markup), css: rest, hoisted };
+}
+
 // src/ui/notes-window.ts
-var ICON_CLOSE = `<svg viewBox="0 0 24 24" width="18" height="18" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>`;
-var ICON_GLASS = `<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 32 32"><g fill="currentColor"><path d="M16 27.15c3.733 0 6.76-4.867 6.76-10.87S19.733 5.41 16 5.41s-6.76 4.867-6.76 10.87S12.267 27.15 16 27.15m5.76-10.87c0 2.845-.72 5.373-1.83 7.158c-1.118 1.8-2.535 2.712-3.93 2.712s-2.812-.912-3.93-2.712a11 11 0 0 1-1.024-2.172l9.85-10.134c.543 1.49.864 3.249.864 5.148"/><path d="M16 1a5.67 5.67 0 0 0-4.719 2.525l-1.024 1.536a3 3 0 0 1-1.154 1.02l-1.583.79a5 5 0 0 0-2.303 6.568l.601 1.304a3 3 0 0 1 0 2.514l-.601 1.304a5 5 0 0 0 2.303 6.567l1.583.791a3 3 0 0 1 1.154 1.02l1.024 1.536a5.67 5.67 0 0 0 9.438 0l1.024-1.536a3 3 0 0 1 1.154-1.02l1.583-.79a5 5 0 0 0 2.303-6.568l-.602-1.304a3 3 0 0 1 0-2.514l.602-1.304a5 5 0 0 0-2.303-6.567l-1.583-.791a3 3 0 0 1-1.154-1.02l-1.024-1.536A5.67 5.67 0 0 0 15.999 1m-3.055 3.635a3.67 3.67 0 0 1 6.11 0l1.024 1.536a5 5 0 0 0 1.924 1.698l1.582.792a3 3 0 0 1 1.382 3.94l-.601 1.304a5 5 0 0 0 0 4.19l.601 1.304a3 3 0 0 1-1.382 3.94l-1.582.792a5 5 0 0 0-1.924 1.698l-1.024 1.536a3.67 3.67 0 0 1-6.11 0l-1.024-1.536a5 5 0 0 0-1.924-1.698l-1.582-.792a3 3 0 0 1-1.382-3.94l.601-1.304a5 5 0 0 0 0-4.19l-.6-1.305a3 3 0 0 1 1.382-3.94l1.582-.792a5 5 0 0 0 1.924-1.698z"/></g></svg>`;
-var ICON_EMPTY = `<svg viewBox="0 0 24 24" fill="currentColor"><path d="M14 2H6c-1.1 0-1.99.9-1.99 2L4 20c0 1.1.89 2 1.99 2H18c1.1 0 2-.9 2-2V8l-6-6zm2 16H8v-2h8v2zm0-4H8v-2h8v2zm-3-5V3.5L18.5 9H13z"/></svg>`;
-function createNotesWindow() {
+var BODY_SCOPE = ".lg-body";
+function escapeHtml(text) {
+  return text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+}
+function mountOverlay(ctx, className) {
+  try {
+    const handle = ctx.ui.mountApp({ className, position: "end" });
+    return { root: handle.root, destroy: () => handle.destroy() };
+  } catch (err) {
+    console.warn("[Looking Glass] mountApp unavailable (grant 'app_manipulation' to Looking Glass); using document.body", err);
+    const root = document.createElement("div");
+    root.className = className;
+    document.body.appendChild(root);
+    return { root, destroy: () => root.remove() };
+  }
+}
+function createStyleSlot(ctx) {
+  let remove = null;
+  let current = "";
+  const set = (css) => {
+    if (css === current)
+      return;
+    remove?.();
+    remove = null;
+    current = css;
+    if (css)
+      remove = ctx.dom.addStyle(css);
+  };
+  return { set, clear: () => set("") };
+}
+function findFixedRoots(container) {
+  const roots = [];
+  for (const el of Array.from(container.querySelectorAll("*"))) {
+    if (getComputedStyle(el).position !== "fixed")
+      continue;
+    if (roots.some((root) => root.contains(el)))
+      continue;
+    roots.push(el);
+  }
+  return roots;
+}
+function createNotesWindow(ctx) {
   const STORAGE_KEY_PREFS = "looking-glass-window-prefs";
   const savedPrefs = JSON.parse(localStorage.getItem(STORAGE_KEY_PREFS) || "{}");
-  let currentSettings = { renderMode: "window", alwaysInject: false };
-  const globalStyleId = "lg-global-styles";
-  const updateGlobalStyles = (css) => {
-    let styleEl = document.getElementById(globalStyleId);
-    if (!styleEl) {
-      styleEl = document.createElement("style");
-      styleEl.id = globalStyleId;
-      document.head.appendChild(styleEl);
-    }
-    styleEl.textContent = css;
-  };
-  const host = document.createElement("div");
-  host.className = "lg-window-host";
-  host.style.position = "fixed";
-  host.style.top = "0";
-  host.style.left = "0";
-  host.style.width = "100%";
-  host.style.height = "100%";
-  host.style.zIndex = "10000";
-  host.style.pointerEvents = "none";
-  host.style.display = "none";
+  let settings = loadSettings();
+  let notes = { status: "loading", text: "" };
+  let open = false;
+  let rendered = null;
+  let renderedFor = "";
+  let windowKey = "";
+  let layerKey = "";
+  let layer = null;
+  const hoistedStyle = createStyleSlot(ctx);
+  const globalStyle = createStyleSlot(ctx);
+  const overlay = mountOverlay(ctx, "lg-window-host");
+  const host = overlay.root;
+  Object.assign(host.style, {
+    position: "fixed",
+    top: "0",
+    left: "0",
+    width: "100%",
+    height: "100%",
+    zIndex: "10000",
+    pointerEvents: "none",
+    display: "none"
+  });
   const shadow = host.attachShadow({ mode: "open" });
   const baseStyle = document.createElement("style");
   baseStyle.textContent = NOTES_CSS;
   shadow.appendChild(baseStyle);
-  const body = document.createElement("body");
-  body.style.margin = "0";
-  body.style.padding = "0";
-  body.style.display = "contents";
+  const authorStyle = document.createElement("style");
+  shadow.appendChild(authorStyle);
   const root = document.createElement("div");
   root.className = "lg-window";
   root.style.width = "400px";
@@ -1690,23 +4372,17 @@ function createNotesWindow() {
       <button class="lg-window-close" title="Close">${ICON_CLOSE}</button>
     </div>
   `;
+  const viewport = document.createElement("div");
+  viewport.className = "lg-viewport lg-body";
   const content = document.createElement("div");
   content.className = "lg-window-content";
-  content.innerHTML = `
-    <div class="lg-notes-empty">
-      ${ICON_EMPTY}
-      <p>Loading notes...</p>
-    </div>
-  `;
+  viewport.appendChild(content);
   const resizeHandle = document.createElement("div");
   resizeHandle.className = "lg-window-resize-handle";
   root.appendChild(header);
-  root.appendChild(content);
+  root.appendChild(viewport);
   root.appendChild(resizeHandle);
-  body.appendChild(root);
-  shadow.appendChild(body);
-  document.body.appendChild(host);
-  let currentRawContent = "";
+  shadow.appendChild(root);
   let isDragging = false;
   let isResizing = false;
   let startX = 0, startY = 0, startW = 0, startH = 0, startTop = 0, startLeft = 0;
@@ -1734,7 +4410,7 @@ function createNotesWindow() {
     startH = root.offsetHeight;
     e.preventDefault();
   });
-  window.addEventListener("mousemove", (e) => {
+  const onMouseMove = (e) => {
     if (isDragging) {
       root.style.top = `${startTop + (e.clientY - startY)}px`;
       root.style.left = `${startLeft + (e.clientX - startX)}px`;
@@ -1743,158 +4419,160 @@ function createNotesWindow() {
       root.style.width = `${Math.max(280, startW + (e.clientX - startX))}px`;
       root.style.height = `${Math.max(200, startH + (e.clientY - startY))}px`;
     }
-  });
-  window.addEventListener("mouseup", () => {
+  };
+  const onMouseUp = () => {
     if (isDragging || isResizing) {
       isDragging = false;
       isResizing = false;
       header.style.cursor = "";
       savePrefs();
     }
-  });
+  };
+  window.addEventListener("mousemove", onMouseMove);
+  window.addEventListener("mouseup", onMouseUp);
   const closeBtn = header.querySelector(".lg-window-close");
   closeBtn.onclick = () => hide();
-  function show() {
-    host.style.display = "block";
-    updateContent(currentRawContent);
+  function hasNotes() {
+    return notes.status === "ok" && notes.text.trim().length > 0;
   }
-  function hide() {
-    host.style.display = "none";
-    if (currentSettings.renderMode === "global" && !currentSettings.alwaysInject) {
-      updateGlobalStyles("");
+  function ensureRendered() {
+    if (renderedFor === notes.text && rendered)
+      return;
+    try {
+      rendered = renderNotes(notes.text);
+    } catch (err) {
+      console.error("[Looking Glass] Failed to render creator notes", err);
+      rendered = { html: `<pre>${escapeHtml(notes.text)}</pre>`, css: "", hoisted: "" };
+    }
+    renderedFor = notes.text;
+  }
+  function syncGlobalLayer(active) {
+    if (!active || !rendered || !rendered.html.trim()) {
+      layer?.destroy();
+      layer = null;
+      layerKey = "";
+      return;
+    }
+    if (layer && layerKey === renderedFor)
+      return;
+    layer?.destroy();
+    layer = mountOverlay(ctx, "lg-global-layer");
+    Object.assign(layer.root.style, {
+      position: "fixed",
+      inset: "0",
+      pointerEvents: "none",
+      zIndex: "2"
+    });
+    layer.root.innerHTML = rendered.html;
+    layer.root.replaceChildren(...findFixedRoots(layer.root));
+    layerKey = renderedFor;
+  }
+  function renderWindow() {
+    if (!open)
+      return;
+    const key = `${notes.status}|${renderedFor}|${notes.text.length}|${settings.renderMode}|${layer ? 1 : 0}`;
+    if (key === windowKey)
+      return;
+    windowKey = key;
+    if (notes.status !== "ok" || !rendered) {
+      const message = notes.status === "loading" ? "Loading notes..." : notes.text;
+      authorStyle.textContent = "";
+      content.className = "lg-window-content";
+      content.innerHTML = `<div class="lg-notes-empty">${ICON_EMPTY}<p>${escapeHtml(message)}</p></div>`;
+      return;
+    }
+    const hasAuthorCss = rendered.css.trim().length > 0;
+    authorStyle.textContent = scopePageSelectors(rendered.css, BODY_SCOPE);
+    content.className = hasAuthorCss ? "lg-window-content" : "lg-window-content lg-prose";
+    content.innerHTML = rendered.html;
+    content.scrollTop = 0;
+    if (layer) {
+      for (const el of findFixedRoots(content))
+        el.remove();
     }
   }
+  function update() {
+    const globalMode = settings.renderMode === "global";
+    const wantRender = hasNotes() && (open || globalMode && settings.alwaysInject);
+    if (wantRender)
+      ensureRendered();
+    const globalActive = wantRender && globalMode && !!rendered;
+    hoistedStyle.set(wantRender && rendered ? rendered.hoisted : "");
+    globalStyle.set(globalActive && rendered ? rendered.css : "");
+    syncGlobalLayer(globalActive);
+    renderWindow();
+  }
+  function show() {
+    open = true;
+    host.style.display = "block";
+    windowKey = "";
+    update();
+  }
+  function hide() {
+    open = false;
+    host.style.display = "none";
+    update();
+  }
   function toggle() {
-    if (host.style.display === "none")
-      show();
-    else
+    if (open)
       hide();
-  }
-  function updateContent(raw) {
-    currentRawContent = raw;
-    Promise.resolve(g.parse(raw)).then((parsed) => {
-      content.innerHTML = parsed;
-      if (currentSettings.renderMode === "global") {
-        const temp = document.createElement("div");
-        temp.innerHTML = parsed;
-        const cssContent = Array.from(temp.querySelectorAll("style")).map((s) => s.textContent).join(`
-`);
-        if (host.style.display !== "none" || currentSettings.alwaysInject) {
-          updateGlobalStyles(cssContent);
-        } else {
-          updateGlobalStyles("");
-        }
-      } else {
-        updateGlobalStyles("");
-      }
-    });
-  }
-  function updateCharacterId(id) {
-    root.setAttribute("data-char-id", id);
-  }
-  function updateSettings(settings) {
-    currentSettings = settings;
-    updateContent(currentRawContent);
+    else
+      show();
   }
   return {
-    root: host,
     show,
     hide,
     toggle,
-    updateContent,
-    updateCharacterId,
-    updateSettings,
+    isOpen: () => open,
+    hasNotes,
+    setNotes(payload) {
+      notes = payload;
+      update();
+    },
+    setCharacterId(id) {
+      root.setAttribute("data-char-id", id);
+    },
+    setSettings(next) {
+      settings = next;
+      windowKey = "";
+      update();
+    },
     destroy() {
-      updateGlobalStyles("");
-      host.remove();
-    }
-  };
-}
-
-// src/ui/settings.ts
-function createSettingsUI(onChanged) {
-  const STORAGE_KEY = "looking-glass-settings";
-  const settings = JSON.parse(localStorage.getItem(STORAGE_KEY) || JSON.stringify({
-    renderMode: "window",
-    alwaysInject: false
-  }));
-  const root = document.createElement("section");
-  root.className = "lg-settings-card";
-  root.style.cssText = `
-    background: var(--lumiverse-bg-elevated);
-    border: 1px solid var(--lumiverse-border);
-    border-radius: 12px;
-    padding: 16px;
-    margin-bottom: 16px;
-  `;
-  const header = document.createElement("header");
-  header.style.marginBottom = "16px";
-  header.innerHTML = `<h3 style="margin:0; color:var(--lumiverse-accent);">Looking Glass</h3>`;
-  const body = document.createElement("div");
-  const modeItem = document.createElement("div");
-  modeItem.style.marginBottom = "16px";
-  modeItem.innerHTML = `
-    <label style="display:block; font-weight:600; margin-bottom:4px;">Style Rendering Mode</label>
-    <select id="lg-mode-select" style="width:100%; padding:8px; border-radius:6px; background:var(--lumiverse-fill-subtle); color:inherit; border:1px solid var(--lumiverse-border);">
-      <option value="window" ${settings.renderMode === "window" ? "selected" : ""}>Window Only (Isolated)</option>
-      <option value="global" ${settings.renderMode === "global" ? "selected" : ""}>Global (Entire App)</option>
-    </select>
-    <p style="font-size:0.8em; opacity:0.6; margin-top:4px;">Global allows character notes to re-theme the entire Lumiverse interface.</p>
-  `;
-  const alwaysItem = document.createElement("div");
-  alwaysItem.id = "lg-always-container";
-  alwaysItem.style.opacity = settings.renderMode === "window" ? "0.5" : "1";
-  alwaysItem.innerHTML = `
-    <label style="display:flex; align-items:center; gap:8px; cursor:pointer;">
-      <input type="checkbox" id="lg-always-check" ${settings.alwaysInject ? "checked" : ""} ${settings.renderMode === "window" ? "disabled" : ""}>
-      <span>Always Apply Global Styles</span>
-    </label>
-    <p style="font-size:0.8em; opacity:0.6; margin-top:4px;">Apply global styles even when the Looking Glass window is closed.</p>
-  `;
-  body.appendChild(modeItem);
-  body.appendChild(alwaysItem);
-  root.appendChild(header);
-  root.appendChild(body);
-  const modeSelect = modeItem.querySelector("#lg-mode-select");
-  const alwaysCheck = alwaysItem.querySelector("#lg-always-check");
-  function update() {
-    settings.renderMode = modeSelect.value;
-    settings.alwaysInject = alwaysCheck.checked;
-    alwaysItem.style.opacity = settings.renderMode === "window" ? "0.5" : "1";
-    alwaysCheck.disabled = settings.renderMode === "window";
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(settings));
-    onChanged(settings);
-  }
-  modeSelect.addEventListener("change", update);
-  alwaysCheck.addEventListener("change", update);
-  return {
-    root,
-    destroy() {
-      root.remove();
+      window.removeEventListener("mousemove", onMouseMove);
+      window.removeEventListener("mouseup", onMouseUp);
+      layer?.destroy();
+      layer = null;
+      hoistedStyle.clear();
+      globalStyle.clear();
+      overlay.destroy();
     }
   };
 }
 
 // src/frontend.ts
-var ICON_GLASS2 = `<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 32 32"><g fill="currentColor"><path d="M16 27.15c3.733 0 6.76-4.867 6.76-10.87S19.733 5.41 16 5.41s-6.76 4.867-6.76 10.87S12.267 27.15 16 27.15m5.76-10.87c0 2.845-.72 5.373-1.83 7.158c-1.118 1.8-2.535 2.712-3.93 2.712s-2.812-.912-3.93-2.712a11 11 0 0 1-1.024-2.172l9.85-10.134c.543 1.49.864 3.249.864 5.148"/><path d="M16 1a5.67 5.67 0 0 0-4.719 2.525l-1.024 1.536a3 3 0 0 1-1.154 1.02l-1.583.79a5 5 0 0 0-2.303 6.568l.601 1.304a3 3 0 0 1 0 2.514l-.601 1.304a5 5 0 0 0 2.303 6.567l1.583.791a3 3 0 0 1 1.154 1.02l1.024 1.536a5.67 5.67 0 0 0 9.438 0l1.024-1.536a3 3 0 0 1 1.154-1.02l1.583-.79a5 5 0 0 0 2.303-6.568l-.602-1.304a3 3 0 0 1 0-2.514l.602-1.304a5 5 0 0 0-2.303-6.567l-1.583-.791a3 3 0 0 1-1.154-1.02l-1.024-1.536A5.67 5.67 0 0 0 15.999 1m-3.055 3.635a3.67 3.67 0 0 1 6.11 0l1.024 1.536a5 5 0 0 0 1.924 1.698l1.582.792a3 3 0 0 1 1.382 3.94l-.601 1.304a5 5 0 0 0 0 4.19l.601 1.304a3 3 0 0 1-1.382 3.94l-1.582.792a5 5 0 0 0-1.924 1.698l-1.024 1.536a3.67 3.67 0 0 1-6.11 0l-1.024-1.536a5 5 0 0 0-1.924-1.698l-1.582-.792a3 3 0 0 1-1.382-3.94l.601-1.304a5 5 0 0 0 0-4.19l-.6-1.305a3 3 0 0 1 1.382-3.94l1.582-.792a5 5 0 0 0 1.924-1.698z"/></g></svg>`;
 function setup(ctx) {
   const cleanups = [];
   const removeStyle = ctx.dom.addStyle(NOTES_CSS);
   cleanups.push(removeStyle);
-  const windowUI = createNotesWindow();
+  const windowUI = createNotesWindow(ctx);
   cleanups.push(() => windowUI.destroy());
+  function requestNotes() {
+    ctx.sendToBackend({ type: "get_notes" });
+  }
+  function globalStylesWanted() {
+    const settings = loadSettings();
+    return settings.renderMode === "global" && settings.alwaysInject;
+  }
   const settingsMount = ctx.ui.mount("settings_extensions");
   const settingsUI = createSettingsUI((settings) => {
-    windowUI.updateSettings(settings);
+    windowUI.setSettings(settings);
+    if (settings.renderMode === "global" && settings.alwaysInject && !windowUI.hasNotes()) {
+      requestNotes();
+    }
   });
   settingsMount.appendChild(settingsUI.root);
   cleanups.push(() => settingsUI.destroy());
-  const STORAGE_KEY = "looking-glass-settings";
-  const initialSettings = JSON.parse(localStorage.getItem(STORAGE_KEY) || JSON.stringify({
-    renderMode: "window",
-    alwaysInject: false
-  }));
-  windowUI.updateSettings(initialSettings);
+  windowUI.setSettings(loadSettings());
   const widget = ctx.ui.createFloatWidget({
     width: 48,
     height: 48,
@@ -1904,7 +4582,7 @@ function setup(ctx) {
   cleanups.push(() => widget.destroy());
   const widgetContent = document.createElement("div");
   widgetContent.className = "lg-float-widget";
-  widgetContent.innerHTML = ICON_GLASS2;
+  widgetContent.innerHTML = ICON_GLASS;
   widget.root.appendChild(widgetContent);
   const POS_KEY = "looking-glass-widget-pos";
   const savedPos = JSON.parse(localStorage.getItem(POS_KEY) || "{}");
@@ -1914,27 +4592,23 @@ function setup(ctx) {
   widget.onDragEnd((pos) => {
     localStorage.setItem(POS_KEY, JSON.stringify(pos));
   });
-  function requestNotes() {
-    ctx.sendToBackend({ type: "get_notes" });
-  }
-  if (initialSettings.renderMode === "global" && initialSettings.alwaysInject) {
+  if (globalStylesWanted()) {
     requestNotes();
   }
   widgetContent.addEventListener("click", (e) => {
     e.stopPropagation();
     windowUI.toggle();
-    if (windowUI.root.style.display !== "none") {
+    if (windowUI.isOpen()) {
       requestNotes();
     }
   });
   const msgUnsub = ctx.onBackendMessage((msg) => {
     if (msg.type === "notes_result") {
       if (msg.characterId)
-        windowUI.updateCharacterId(msg.characterId);
-      windowUI.updateContent(msg.notes);
+        windowUI.setCharacterId(msg.characterId);
+      windowUI.setNotes({ status: msg.status ?? "ok", text: msg.notes ?? "" });
     } else if (msg.type === "chat_switched") {
-      const current = JSON.parse(localStorage.getItem(STORAGE_KEY) || "{}");
-      if (!windowUI.root.classList.contains("hidden") || current.renderMode === "global" && current.alwaysInject) {
+      if (windowUI.isOpen() || globalStylesWanted()) {
         requestNotes();
       }
     }
