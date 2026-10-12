@@ -69,7 +69,7 @@ var NOTES_CSS = `
   inset: 0 !important;
   width: 100vw !important;
   height: 100vh !important;
-  max-width: 100vw !important;
+  min-height: 100vh !important;
   max-height: 100vh !important;
   border-radius: 0 !important;
   border: none !important;
@@ -78,6 +78,34 @@ var NOTES_CSS = `
   left: 0 !important;
   right: 0 !important;
   bottom: 0 !important;
+  margin: 0 !important;
+  display: flex !important;
+  flex-direction: column !important;
+  background: var(--lg-window-bg, var(--lcs-glass-bg, var(--lumiverse-bg-elevated))) !important;
+  overflow: hidden !important;
+}
+
+.lg-window.popped-out .lg-window-header {
+  flex: 0 0 auto !important;
+  border-radius: 0 !important;
+  border-top: none !important;
+  border-left: none !important;
+  border-right: none !important;
+}
+
+.lg-window.popped-out .lg-viewport {
+  flex: 1 1 0 !important;
+  min-height: 0 !important;
+  height: auto !important;
+  position: relative !important;
+  overflow: hidden !important;
+}
+
+.lg-window.popped-out .lg-window-content {
+  position: absolute !important;
+  inset: 0 !important;
+  overflow-y: auto !important;
+  overflow-x: hidden !important;
 }
 
 .lg-window.popped-out .lg-window-resize-handle {
@@ -4377,8 +4405,7 @@ function getTauriInvoke() {
 function isPoppedOut() {
   if (typeof window === "undefined")
     return false;
-  const params = new URLSearchParams(window.location.search);
-  return params.get("desktopWidgetExtension") === "looking_glass";
+  return new URLSearchParams(window.location.search).has("desktopWidgetExtension");
 }
 function mountOverlay(ctx, className) {
   try {
@@ -4487,7 +4514,9 @@ function createNotesWindow(ctx) {
   root.style.pointerEvents = "auto";
   const header = document.createElement("div");
   header.className = "lg-window-header";
-  header.setAttribute("data-tauri-drag-region", "");
+  if (poppedOut) {
+    header.setAttribute("data-tauri-drag-region", "");
+  }
   header.innerHTML = `
     <div class="lg-window-title">${ICON_GLASS} Looking Glass</div>
     <div class="lg-window-controls">
@@ -4530,6 +4559,9 @@ function createNotesWindow(ctx) {
       const current = JSON.parse(localStorage.getItem(STORAGE_KEY_PREFS) || "{}");
       localStorage.setItem(STORAGE_KEY_PREFS, JSON.stringify({ ...current, left: `${pos.x}px`, top: `${pos.y}px` }));
     });
+    header.addEventListener("pointerdown", (e) => {
+      e.stopPropagation();
+    });
     header.addEventListener("mousedown", (e) => {
       if (e.target.closest("button"))
         return;
@@ -4547,6 +4579,7 @@ function createNotesWindow(ctx) {
       }
       header.style.cursor = "grabbing";
       e.preventDefault();
+      e.stopPropagation();
     });
     resizeHandle.addEventListener("mousedown", (e) => {
       isResizing = true;
@@ -4555,6 +4588,7 @@ function createNotesWindow(ctx) {
       startW = floatWidget ? floatWidget.getPosition?.() ? root.offsetWidth : defaultW : root.offsetWidth;
       startH = floatWidget ? floatWidget.getPosition?.() ? root.offsetHeight : defaultH : root.offsetHeight;
       e.preventDefault();
+      e.stopPropagation();
     });
     const onMouseMove = (e) => {
       if (isDragging) {
@@ -4663,7 +4697,7 @@ function createNotesWindow(ctx) {
     content.scrollTop = 0;
   }
   function update() {
-    const globalMode = settings.renderMode === "global";
+    const globalMode = !poppedOut && settings.renderMode === "global";
     const wantRender = hasNotes() && (open || globalMode && settings.alwaysInject);
     if (wantRender)
       ensureRendered();
@@ -4732,8 +4766,7 @@ function createNotesWindow(ctx) {
 function isPoppedOut2() {
   if (typeof window === "undefined")
     return false;
-  const params = new URLSearchParams(window.location.search);
-  return params.get("desktopWidgetExtension") === "looking_glass";
+  return new URLSearchParams(window.location.search).has("desktopWidgetExtension");
 }
 function setup(ctx) {
   const cleanups = [];
@@ -4810,6 +4843,17 @@ function setup(ctx) {
     }
   });
   cleanups.push(msgUnsub);
+  if (!poppedOut && typeof window !== "undefined") {
+    const handleReturned = (e) => {
+      const detail = e?.detail;
+      if (detail && (detail.extensionId === "looking_glass" || detail.extensionId === "looking-glass")) {
+        windowUI.show();
+        requestNotes();
+      }
+    };
+    window.addEventListener("spindle:desktop-widget-returned", handleReturned);
+    cleanups.push(() => window.removeEventListener("spindle:desktop-widget-returned", handleReturned));
+  }
   return () => {
     cleanups.forEach((c) => c());
   };

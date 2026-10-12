@@ -68,7 +68,7 @@ export const NOTES_CSS = `
   inset: 0 !important;
   width: 100vw !important;
   height: 100vh !important;
-  max-width: 100vw !important;
+  min-height: 100vh !important;
   max-height: 100vh !important;
   border-radius: 0 !important;
   border: none !important;
@@ -77,6 +77,34 @@ export const NOTES_CSS = `
   left: 0 !important;
   right: 0 !important;
   bottom: 0 !important;
+  margin: 0 !important;
+  display: flex !important;
+  flex-direction: column !important;
+  background: var(--lg-window-bg, var(--lcs-glass-bg, var(--lumiverse-bg-elevated))) !important;
+  overflow: hidden !important;
+}
+
+.lg-window.popped-out .lg-window-header {
+  flex: 0 0 auto !important;
+  border-radius: 0 !important;
+  border-top: none !important;
+  border-left: none !important;
+  border-right: none !important;
+}
+
+.lg-window.popped-out .lg-viewport {
+  flex: 1 1 0 !important;
+  min-height: 0 !important;
+  height: auto !important;
+  position: relative !important;
+  overflow: hidden !important;
+}
+
+.lg-window.popped-out .lg-window-content {
+  position: absolute !important;
+  inset: 0 !important;
+  overflow-y: auto !important;
+  overflow-x: hidden !important;
 }
 
 .lg-window.popped-out .lg-window-resize-handle {

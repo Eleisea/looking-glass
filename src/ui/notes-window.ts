@@ -45,8 +45,7 @@ function getTauriInvoke(): ((cmd: string, args?: Record<string, unknown>) => Pro
 
 function isPoppedOut(): boolean {
   if (typeof window === "undefined") return false;
-  const params = new URLSearchParams(window.location.search);
-  return params.get("desktopWidgetExtension") === "looking_glass";
+  return new URLSearchParams(window.location.search).has("desktopWidgetExtension");
 }
 
 /**
@@ -175,7 +174,9 @@ export function createNotesWindow(ctx: SpindleFrontendContext): NotesWindow {
 
   const header = document.createElement("div");
   header.className = "lg-window-header";
-  header.setAttribute("data-tauri-drag-region", "");
+  if (poppedOut) {
+    header.setAttribute("data-tauri-drag-region", "");
+  }
   header.innerHTML = `
     <div class="lg-window-title">${ICON_GLASS} Looking Glass</div>
     <div class="lg-window-controls">
@@ -227,6 +228,10 @@ export function createNotesWindow(ctx: SpindleFrontendContext): NotesWindow {
       localStorage.setItem(STORAGE_KEY_PREFS, JSON.stringify({ ...current, left: `${pos.x}px`, top: `${pos.y}px` }));
     });
 
+    header.addEventListener("pointerdown", (e) => {
+      e.stopPropagation();
+    });
+
     header.addEventListener("mousedown", (e) => {
       if ((e.target as HTMLElement).closest("button")) return;
       isDragging = true;
@@ -240,6 +245,7 @@ export function createNotesWindow(ctx: SpindleFrontendContext): NotesWindow {
       }
       header.style.cursor = "grabbing";
       e.preventDefault();
+      e.stopPropagation();
     });
 
     resizeHandle.addEventListener("mousedown", (e) => {
@@ -248,6 +254,7 @@ export function createNotesWindow(ctx: SpindleFrontendContext): NotesWindow {
       startW = floatWidget ? (floatWidget.getPosition?.() ? root.offsetWidth : defaultW) : root.offsetWidth;
       startH = floatWidget ? (floatWidget.getPosition?.() ? root.offsetHeight : defaultH) : root.offsetHeight;
       e.preventDefault();
+      e.stopPropagation();
     });
 
     const onMouseMove = (e: MouseEvent) => {
@@ -369,7 +376,7 @@ export function createNotesWindow(ctx: SpindleFrontendContext): NotesWindow {
   }
 
   function update(): void {
-    const globalMode = settings.renderMode === "global";
+    const globalMode = !poppedOut && settings.renderMode === "global";
     const wantRender = hasNotes() && (open || (globalMode && settings.alwaysInject));
 
     if (wantRender) ensureRendered();

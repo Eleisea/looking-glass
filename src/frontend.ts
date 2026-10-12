@@ -6,8 +6,7 @@ import { createSettingsUI, loadSettings } from "./ui/settings";
 
 function isPoppedOut(): boolean {
   if (typeof window === "undefined") return false;
-  const params = new URLSearchParams(window.location.search);
-  return params.get("desktopWidgetExtension") === "looking_glass";
+  return new URLSearchParams(window.location.search).has("desktopWidgetExtension");
 }
 
 export function setup(ctx: SpindleFrontendContext) {
@@ -106,6 +105,19 @@ export function setup(ctx: SpindleFrontendContext) {
     }
   });
   cleanups.push(msgUnsub);
+
+  // 7. Handle widget returned from native pop-out
+  if (!poppedOut && typeof window !== "undefined") {
+    const handleReturned = (e: Event) => {
+      const detail = (e as CustomEvent)?.detail;
+      if (detail && (detail.extensionId === "looking_glass" || detail.extensionId === "looking-glass")) {
+        windowUI.show();
+        requestNotes();
+      }
+    };
+    window.addEventListener("spindle:desktop-widget-returned", handleReturned);
+    cleanups.push(() => window.removeEventListener("spindle:desktop-widget-returned", handleReturned));
+  }
 
   return () => {
     cleanups.forEach((c) => c());
