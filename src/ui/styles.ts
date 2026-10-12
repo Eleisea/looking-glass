@@ -63,6 +63,26 @@ export const NOTES_CSS = `
   transform: scale(0.95) translateY(10px);
 }
 
+.lg-window.popped-out {
+  position: fixed !important;
+  inset: 0 !important;
+  width: 100vw !important;
+  height: 100vh !important;
+  max-width: 100vw !important;
+  max-height: 100vh !important;
+  border-radius: 0 !important;
+  border: none !important;
+  box-shadow: none !important;
+  top: 0 !important;
+  left: 0 !important;
+  right: 0 !important;
+  bottom: 0 !important;
+}
+
+.lg-window.popped-out .lg-window-resize-handle {
+  display: none !important;
+}
+
 .lg-window-header {
   padding: 12px 16px;
   display: flex;
@@ -98,10 +118,8 @@ export const NOTES_CSS = `
 .lg-window-controls {
   display: flex;
   align-items: center;
-  gap: 4px;
 }
 
-.lg-window-popout,
 .lg-window-close {
   width: 28px;
   height: 28px;
@@ -116,7 +134,6 @@ export const NOTES_CSS = `
   transition: all 0.2s ease;
 }
 
-.lg-window-popout:hover,
 .lg-window-close:hover {
   background: rgba(255, 255, 255, 0.1);
   color: var(--lumiverse-text);

@@ -1,6 +1,6 @@
 import type { SpindleFrontendContext, SpindleFloatWidgetHandle } from "lumiverse-spindle-types";
 import { NOTES_CSS } from "./styles";
-import { ICON_CLOSE, ICON_EMPTY, ICON_GLASS, ICON_POPOUT, ICON_RETURN } from "./icons";
+import { ICON_CLOSE, ICON_EMPTY, ICON_GLASS } from "./icons";
 import { loadSettings, type LgSettings } from "./settings";
 import { renderNotes, scopePageSelectors, type RenderedNotes } from "../render/pipeline";
 
@@ -41,12 +41,6 @@ function getTauriInvoke(): ((cmd: string, args?: Record<string, unknown>) => Pro
   if (typeof w.__TAURI__?.core?.invoke === "function") return w.__TAURI__.core.invoke;
   if (typeof w.__TAURI_INTERNALS__?.invoke === "function") return w.__TAURI_INTERNALS__.invoke;
   return null;
-}
-
-function isDesktopWindow(): boolean {
-  if (typeof window === "undefined") return false;
-  const w = window as any;
-  return typeof w.__TAURI__ !== "undefined" || typeof w.__TAURI_INTERNALS__ !== "undefined";
 }
 
 function isPoppedOut(): boolean {
@@ -124,10 +118,12 @@ export function createNotesWindow(ctx: SpindleFrontendContext): NotesWindow {
       tooltip: "Looking Glass - Notes",
     });
     host = floatWidget.root;
-    host.style.width = "100%";
-    host.style.height = "100%";
-    host.style.pointerEvents = "auto";
-    if (!poppedOut) {
+    if (poppedOut) {
+      host.style.cssText = "width: 100vw !important; height: 100vh !important; overflow: hidden !important; pointer-events: auto;";
+    } else {
+      host.style.width = "100%";
+      host.style.height = "100%";
+      host.style.pointerEvents = "auto";
       floatWidget.setVisible(false);
     }
   } catch (err) {
@@ -157,45 +153,35 @@ export function createNotesWindow(ctx: SpindleFrontendContext): NotesWindow {
   shadow.appendChild(authorStyle);
 
   const root = document.createElement("div");
-  root.className = "lg-window";
-  if (floatWidget) {
-    root.style.position = "relative";
-    root.style.width = "100%";
-    root.style.height = "100%";
-    root.style.top = "0";
-    root.style.left = "0";
+  if (poppedOut) {
+    root.className = "lg-window popped-out";
   } else {
-    root.style.position = "fixed";
-    root.style.width = savedPrefs.width || "400px";
-    root.style.height = savedPrefs.height || "500px";
-    root.style.top = savedPrefs.top || "100px";
-    root.style.left = savedPrefs.left || "100px";
+    root.className = "lg-window";
+    if (floatWidget) {
+      root.style.position = "relative";
+      root.style.width = "100%";
+      root.style.height = "100%";
+      root.style.top = "0";
+      root.style.left = "0";
+    } else {
+      root.style.position = "fixed";
+      root.style.width = savedPrefs.width || "400px";
+      root.style.height = savedPrefs.height || "500px";
+      root.style.top = savedPrefs.top || "100px";
+      root.style.left = savedPrefs.left || "100px";
+    }
   }
   root.style.pointerEvents = "auto";
 
   const header = document.createElement("div");
   header.className = "lg-window-header";
+  header.setAttribute("data-tauri-drag-region", "");
   header.innerHTML = `
     <div class="lg-window-title">${ICON_GLASS} Looking Glass</div>
     <div class="lg-window-controls">
-      <button class="lg-window-popout" title="${poppedOut ? "Return to Lumiverse window" : "Pop out to desktop window"}">${poppedOut ? ICON_RETURN : ICON_POPOUT}</button>
       <button class="lg-window-close" title="Close">${ICON_CLOSE}</button>
     </div>
   `;
-
-  const popoutBtn = header.querySelector(".lg-window-popout") as HTMLElement;
-  if (!isDesktopWindow()) {
-    popoutBtn.style.display = "none";
-  } else {
-    popoutBtn.onclick = () => {
-      const invoke = getTauriInvoke();
-      if (invoke && floatWidget) {
-        void invoke(poppedOut ? "return_extension_widget" : "show_extension_widget", {
-          widgetId: floatWidget.widgetId,
-        });
-      }
-    };
-  }
 
   // The viewport is the notes' stand-in <body> and confines fixed elements.
   const viewport = document.createElement("div");
@@ -213,12 +199,13 @@ export function createNotesWindow(ctx: SpindleFrontendContext): NotesWindow {
   root.appendChild(resizeHandle);
   shadow.appendChild(root);
 
-  // ── Drag / resize ─────────────────────────────────────────────────────────
+  // ── Drag / resize (Page widget mode only) ─────────────────────────────────
   let isDragging = false;
   let isResizing = false;
   let startX = 0, startY = 0, startW = defaultW, startH = defaultH, startTop = defaultY, startLeft = defaultX;
 
   function savePrefs() {
+    if (poppedOut) return;
     let w = root.style.width;
     let h = root.style.height;
     let t = root.style.top;
@@ -234,67 +221,69 @@ export function createNotesWindow(ctx: SpindleFrontendContext): NotesWindow {
     localStorage.setItem(STORAGE_KEY_PREFS, JSON.stringify(prefs));
   }
 
-  floatWidget?.onDragEnd?.((pos) => {
-    const current = JSON.parse(localStorage.getItem(STORAGE_KEY_PREFS) || "{}");
-    localStorage.setItem(STORAGE_KEY_PREFS, JSON.stringify({ ...current, left: `${pos.x}px`, top: `${pos.y}px` }));
-  });
+  if (!poppedOut) {
+    floatWidget?.onDragEnd?.((pos) => {
+      const current = JSON.parse(localStorage.getItem(STORAGE_KEY_PREFS) || "{}");
+      localStorage.setItem(STORAGE_KEY_PREFS, JSON.stringify({ ...current, left: `${pos.x}px`, top: `${pos.y}px` }));
+    });
 
-  header.addEventListener("mousedown", (e) => {
-    if ((e.target as HTMLElement).closest("button")) return;
-    isDragging = true;
-    startX = e.clientX; startY = e.clientY;
-    if (floatWidget) {
-      const pos = floatWidget.getPosition?.() || { x: defaultX, y: defaultY };
-      startTop = pos.y; startLeft = pos.x;
-    } else {
-      const rect = root.getBoundingClientRect();
-      startTop = rect.top; startLeft = rect.left;
-    }
-    header.style.cursor = "grabbing";
-    e.preventDefault();
-  });
-
-  resizeHandle.addEventListener("mousedown", (e) => {
-    isResizing = true;
-    startX = e.clientX; startY = e.clientY;
-    startW = floatWidget ? (floatWidget.getPosition?.() ? root.offsetWidth : defaultW) : root.offsetWidth;
-    startH = floatWidget ? (floatWidget.getPosition?.() ? root.offsetHeight : defaultH) : root.offsetHeight;
-    e.preventDefault();
-  });
-
-  const onMouseMove = (e: MouseEvent) => {
-    if (isDragging) {
-      const newTop = startTop + (e.clientY - startY);
-      const newLeft = startLeft + (e.clientX - startX);
+    header.addEventListener("mousedown", (e) => {
+      if ((e.target as HTMLElement).closest("button")) return;
+      isDragging = true;
+      startX = e.clientX; startY = e.clientY;
       if (floatWidget) {
-        floatWidget.moveTo(newLeft, newTop);
+        const pos = floatWidget.getPosition?.() || { x: defaultX, y: defaultY };
+        startTop = pos.y; startLeft = pos.x;
       } else {
-        root.style.top = `${newTop}px`;
-        root.style.left = `${newLeft}px`;
-        root.style.right = "auto";
+        const rect = root.getBoundingClientRect();
+        startTop = rect.top; startLeft = rect.left;
       }
-    } else if (isResizing) {
-      const newW = Math.max(280, startW + (e.clientX - startX));
-      const newH = Math.max(200, startH + (e.clientY - startY));
-      if (floatWidget) {
-        floatWidget.setSize(newW, newH);
-      } else {
-        root.style.width = `${newW}px`;
-        root.style.height = `${newH}px`;
+      header.style.cursor = "grabbing";
+      e.preventDefault();
+    });
+
+    resizeHandle.addEventListener("mousedown", (e) => {
+      isResizing = true;
+      startX = e.clientX; startY = e.clientY;
+      startW = floatWidget ? (floatWidget.getPosition?.() ? root.offsetWidth : defaultW) : root.offsetWidth;
+      startH = floatWidget ? (floatWidget.getPosition?.() ? root.offsetHeight : defaultH) : root.offsetHeight;
+      e.preventDefault();
+    });
+
+    const onMouseMove = (e: MouseEvent) => {
+      if (isDragging) {
+        const newTop = startTop + (e.clientY - startY);
+        const newLeft = startLeft + (e.clientX - startX);
+        if (floatWidget) {
+          floatWidget.moveTo(newLeft, newTop);
+        } else {
+          root.style.top = `${newTop}px`;
+          root.style.left = `${newLeft}px`;
+          root.style.right = "auto";
+        }
+      } else if (isResizing) {
+        const newW = Math.max(280, startW + (e.clientX - startX));
+        const newH = Math.max(200, startH + (e.clientY - startY));
+        if (floatWidget) {
+          floatWidget.setSize(newW, newH);
+        } else {
+          root.style.width = `${newW}px`;
+          root.style.height = `${newH}px`;
+        }
       }
-    }
-  };
+    };
 
-  const onMouseUp = () => {
-    if (isDragging || isResizing) {
-      isDragging = false; isResizing = false;
-      header.style.cursor = "";
-      savePrefs();
-    }
-  };
+    const onMouseUp = () => {
+      if (isDragging || isResizing) {
+        isDragging = false; isResizing = false;
+        header.style.cursor = "";
+        savePrefs();
+      }
+    };
 
-  window.addEventListener("mousemove", onMouseMove);
-  window.addEventListener("mouseup", onMouseUp);
+    window.addEventListener("mousemove", onMouseMove);
+    window.addEventListener("mouseup", onMouseUp);
+  }
 
   const closeBtn = header.querySelector(".lg-window-close") as HTMLElement;
   closeBtn.onclick = () => {
@@ -438,8 +427,6 @@ export function createNotesWindow(ctx: SpindleFrontendContext): NotesWindow {
       update();
     },
     destroy() {
-      window.removeEventListener("mousemove", onMouseMove);
-      window.removeEventListener("mouseup", onMouseUp);
       layer?.destroy();
       layer = null;
       hoistedStyle.clear();
