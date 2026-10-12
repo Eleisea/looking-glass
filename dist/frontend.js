@@ -1235,7 +1235,7 @@ var L = class {
     return e;
   }
 };
-var b = class l2 {
+var b = class l {
   options;
   renderer;
   textRenderer;
@@ -1243,10 +1243,10 @@ var b = class l2 {
     this.options = e || T, this.options.renderer = this.options.renderer || new y, this.renderer = this.options.renderer, this.renderer.options = this.options, this.renderer.parser = this, this.textRenderer = new L;
   }
   static parse(e, t) {
-    return new l2(t).parse(e);
+    return new l(t).parse(e);
   }
   static parseInline(e, t) {
-    return new l2(t).parseInline(e);
+    return new l(t).parseInline(e);
   }
   parse(e) {
     this.renderer.parser = this;
@@ -1597,19 +1597,19 @@ Please report this to https://github.com/markedjs/marked.`, e) {
   }
 };
 var M = new D;
-function g(l3, e) {
-  return M.parse(l3, e);
+function g(l, e) {
+  return M.parse(l, e);
 }
-g.options = g.setOptions = function(l3) {
-  return M.setOptions(l3), g.defaults = M.defaults, G(g.defaults), g;
+g.options = g.setOptions = function(l) {
+  return M.setOptions(l), g.defaults = M.defaults, G(g.defaults), g;
 };
 g.getDefaults = z;
 g.defaults = T;
-g.use = function(...l3) {
-  return M.use(...l3), g.defaults = M.defaults, G(g.defaults), g;
+g.use = function(...l) {
+  return M.use(...l), g.defaults = M.defaults, G(g.defaults), g;
 };
-g.walkTokens = function(l3, e) {
-  return M.walkTokens(l3, e);
+g.walkTokens = function(l, e) {
+  return M.walkTokens(l, e);
 };
 g.parseInline = M.parseInline;
 g.Parser = b;
